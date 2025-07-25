@@ -1,0 +1,76 @@
+--- ai_backup/20250725_231209/pubspec.yaml+++ ai_backup/20250725_231209/pubspec.yaml.new@@ -1,49 +1,38 @@-name: segreteria_medica
+-description: "A new Flutter project."
++name: seg\_medico
++description: A new Flutter project.
+ 
+-# La seguente riga impedisce la pubblicazione su pub.dev
+-publish_to: 'none' # Imposta su 'none' per le applicazioni private
++publish\_to: 'none' \# Remove this line if you wish to publish to pub.dev
+ 
+-# La versione definisce il nome della versione e il numero di build della tua applicazione.
+-# Il nome della versione consiste in tre numeri separati da punti, ad esempio 1.0.0.
+-# Il numero di build consiste in un numero intero.
+-# Entrambi i campi possono essere sovrascritti dai flag --build-name e --build-number di Flutter.
+ version: 1.0.0+1
+ 
+ environment:
+-  sdk: '>=3.0.0 <4.0.0' # Ho mantenuto questo range di SDK per maggiore compatibilità futura.
+-                      # Il tuo '^3.7.0' è valido e rientra qui.
++sdk: '\>=3.0.0 \<4.0.0'
+ 
+ dependencies:
+-  flutter:
+-    sdk: flutter
++flutter:
++sdk: flutter
++cupertino\_icons: ^1.0.2
++dio: ^5.4.3 \# Aggiunto per le richieste HTTP
++flutter\_secure\_storage: ^9.0.0 \# Aggiunto per lo storage sicuro dei token
++intl: ^0.19.0 \# Aggiunto per la formattazione delle date
++provider: ^6.0.5 \# Aggiunto per la gestione dello stato
++shared\_preferences: ^2.2.3 \# Aggiunto per le preferenze utente
++flutter\_local\_notifications: ^17.1.2 \# Aggiunto per le notifiche locali
+ 
+-  # Le seguenti dipendenze sono state aggiunte per la funzionalità.
+-  dio: ^5.4.3 # Per le chiamate API HTTP
+-  shared_preferences: ^2.2.0 # Per la persistenza dei dati locali
+-  provider: ^6.0.5 # Aggiungi questa riga (o l'ultima versione stabile)
++dev\_dependencies:
++flutter\_test:
++sdk: flutter
++flutter\_lints: ^2.0.0
+ 
+-  # Le icone Cupertino sono fornite da Flutter.
+-  cupertino_icons: ^1.0.8 # Usiamo la tua versione più recente
+-
+-dev_dependencies:
+-  flutter_test:
+-    sdk: flutter
+-
+-  # Il pacchetto flutter_lints fornisce un set di lint consigliati per il codice Flutter.
+-  flutter_lints: ^5.0.0 # Usiamo la tua versione più recente
+-
+-# La sezione flutter definisce la configurazione specifica di Flutter per il tuo progetto.
+ flutter:
+-
+-  # La seguente linea assicura che il Material Icons font sia
+-  # incluso con la tua applicazione.
+-  uses-material-design: true
+-
+-  # Per aggiungere assets alla tua applicazione, aggiungi una sezione assets.
+-  # Le cartelle indicate qui saranno incluse nel tuo pacchetto applicativo finale.
+-  assets:
+-    - assets/logo.png # <--- ATTIVATO E PUNTATO AL TUO FILE LOGO
+-
+-  # Per dettagli sull'aggiunta di font personalizzati o altri assets, puoi consultare la documentazione
+-  # di Flutter o ripristinare le righe commentate se ne avrai bisogno in futuro.+uses-material-design: true
++assets:
++\- assets/
++fonts:
++\- family: Inter
++fonts:
++\- asset: assets/fonts/Inter-Regular.ttf
++\- asset: assets/fonts/Inter-Bold.ttf
++weight: 700
++\- asset: assets/fonts/Inter-Medium.ttf
++weight: 500
