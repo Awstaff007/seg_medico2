@@ -1,0 +1,294 @@
+import 'package:flutter/material.dart';
+import 'package:segreteria_medica/api/auth_repository.dart'; // Per usare AuthRepository
+import 'package:segreteria_medica/api/paziente_repository.dart'; // Per usare PazienteRepository
+import 'package:segreteria_medica/main.dart'; // Per accedere ai repository globali
+import 'package:segreteria_medica/screens/home_page.dart'; // Per navigare alla HomePage dopo il login
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  // Controllori per i campi di testo
+  final TextEditingController _cfController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
+
+  // Variabili di stato per gestire la UI
+  bool _otpRequested = false; // Diventa true dopo aver richiesto l'OTP
+  bool _isLoading = false; // Per mostrare un indicatore di caricamento
+  String? _errorMessage; // Per mostrare messaggi di errore
+
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingLogin(); // Controlla se l'utente è già loggato
+  }
+
+  // Controlla se un token esiste già o un paziente attivo
+  Future<void> _checkExistingLogin() async {
+    setState(() {
+      _isLoading = true;
+    });
+    final token = await authRepository.getAuthToken();
+    final activePaziente = await authRepository.getActivePazienteCredentials();
+
+    if (token != null && activePaziente['codiceFiscale'] != null && activePaziente['numeroTelefono'] != null) {
+      // Se token e credenziali esistono, prova a ottenere info paziente per validare
+      final pazienteInfo = await pazienteRepository.getPazienteInfo(token);
+      if (pazienteInfo != null) {
+        // Se le info paziente sono valide, naviga direttamente alla HomePage
+        // E salva il nome del paziente se non già presente
+        if (activePaziente['nome'] == null || activePaziente['nome']!.isEmpty) {
+          await authRepository.setActivePazienteInfo(pazienteInfo.nome, pazienteInfo.codiceFiscale, pazienteInfo.numeroTelefono);
+        }
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomePage()),
+          );
+        }
+      } else {
+        // Token non valido, pulisci e forza il login
+        await authRepository.logout();
+        setState(() {
+          _errorMessage = "Sessione scaduta o non valida, si prega di accedere di nuovo.";
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Gestisce la richiesta dell'OTP
+  Future<void> _requestOtp() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null; // Resetta eventuali errori precedenti
+    });
+
+    final success = await authRepository.richiestaOtp(
+      _cfController.text.trim(),
+      _phoneController.text.trim(),
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (success) {
+          _otpRequested = true; // Mostra il campo OTP
+          _errorMessage = null;
+        } else {
+          _errorMessage = "Richiesta OTP fallita. Verifica Codice Fiscale e Numero di Telefono.";
+        }
+      });
+    }
+  }
+
+  // Gestisce il login con l'OTP
+  Future<void> _loginWithOtp() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final token = await authRepository.loginConOtp(
+      _cfController.text.trim(),
+      _phoneController.text.trim(),
+      _otpController.text.trim(),
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (token != null) {
+          // Login riuscito, ora recupera le info complete del paziente
+          _fetchPazienteInfoAndNavigate(token);
+        } else {
+          _errorMessage = "Login fallito. Codice OTP errato o scaduto.";
+        }
+      });
+    }
+  }
+
+  Future<void> _fetchPazienteInfoAndNavigate(String token) async {
+    final pazienteInfo = await pazienteRepository.getPazienteInfo(token);
+    if (mounted) {
+      if (pazienteInfo != null) {
+        // Salva il nome del paziente dopo il login
+        await authRepository.setActivePazienteInfo(pazienteInfo.nome, pazienteInfo.codiceFiscale, pazienteInfo.numeroTelefono);
+        // Naviga alla HomePage e impedisci di tornare indietro
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      } else {
+        // Se non riusciamo a recuperare le info del paziente, consideriamo il login parzialmente fallito
+        _errorMessage = "Login riuscito, ma impossibile recuperare i dati del paziente. Riprova più tardi.";
+        // Potrebbe essere utile forzare un logout qui o gestire diversamente
+        await authRepository.logout();
+      }
+    }
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Accesso Paziente'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: SingleChildScrollView( // Permette lo scroll se la tastiera copre i campi
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/logo.png', // Assicurati di avere un logo nella cartella assets
+                height: 120,
+              ),
+              const SizedBox(height: 32),
+              Text(
+                'Accedi con Codice Fiscale e Numero di Telefono',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Campo Codice Fiscale
+              TextField(
+                controller: _cfController,
+                decoration: InputDecoration(
+                  labelText: 'Codice Fiscale',
+                  prefixIcon: const Icon(Icons.person),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.secondary, width: 2),
+                  ),
+                ),
+                textCapitalization: TextCapitalization.characters, // Tutto maiuscolo
+                keyboardType: TextInputType.text,
+                enabled: !_otpRequested && !_isLoading, // Disabilita dopo richiesta OTP
+              ),
+              const SizedBox(height: 16),
+
+              // Campo Numero di Telefono
+              TextField(
+                controller: _phoneController,
+                decoration: InputDecoration(
+                  labelText: 'Numero di Telefono',
+                  prefixIcon: const Icon(Icons.phone),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.secondary, width: 2),
+                  ),
+                ),
+                keyboardType: TextInputType.phone,
+                enabled: !_otpRequested && !_isLoading, // Disabilita dopo richiesta OTP
+              ),
+              const SizedBox(height: 24),
+
+              // Bottone "Richiedi OTP" o "Invia Codice OTP"
+              if (!_otpRequested)
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _requestOtp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50), // Bottone a tutta larghezza
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Richiedi Codice OTP'),
+                )
+              else // Mostra campo OTP e bottone "Accedi"
+                Column(
+                  children: [
+                    TextField(
+                      controller: _otpController,
+                      decoration: InputDecoration(
+                        labelText: 'Codice OTP ricevuto',
+                        prefixIcon: const Icon(Icons.vpn_key),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.secondary, width: 2),
+                        ),
+                      ),
+                      keyboardType: TextInputType.number,
+                      enabled: !_isLoading,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _loginWithOtp,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.secondary, // Colore secondario
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Accedi'),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: _isLoading ? null : () {
+                        setState(() {
+                          _otpRequested = false; // Permette di tornare indietro e richiedere un nuovo OTP
+                          _otpController.clear();
+                          _errorMessage = null;
+                        });
+                      },
+                      child: const Text('Richiedi nuovo OTP o correggi dati'),
+                    ),
+                  ],
+                ),
+
+              // Messaggio di errore
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
