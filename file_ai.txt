@@ -1,0 +1,254 @@
+Mi dispiace per gli errori che stai riscontrando. Sembra che le modifiche precedenti non siano state sufficienti a risolvere tutti i problemi. Analizziamo i nuovi errori.
+
+Gli errori principali che vedo ora sono:
+
+1.  **"No such file or directory"**: Questi errori indicano che il compilatore non riesce a trovare i file specificati nelle dichiarazioni `import`. Questo suggerisce che le directory `providers`, `services` e `screens` potrebbero non esistere all'interno della cartella `lib`, o i nomi dei file all'interno di esse potrebbero non corrispondere esattamente a quelli negli `import`.
+2.  **"Couldn't resolve the package 'segreteria\_medica'"**: Questo conferma che il prefisso del pacchetto utilizzato negli `import` è `segreteria_medica`, mentre il nome effettivo del tuo progetto (e quindi del pacchetto Flutter) è `seg_medico`. C'è un'incoerenza che deve essere risolta in tutti i file.
+3.  **Errori di sintassi in `main.dart`**: Ci sono ancora problemi con l'inizializzazione del `Provider<ApiService>` e la gestione del `notificationResponse.payload`.
+
+Per risolvere questi problemi, dobbiamo fare quanto segue:
+
+  * **Rinominare la cartella radice del progetto:** Se il tuo progetto si chiama `segreteria_medica` sul filesystem ma `pubspec.yaml` lo chiama `seg_medico`, è fondamentale che siano coerenti. Il modo più semplice è rinominare la cartella principale del progetto da `segreteria_medica` a `seg_medico`. Se non l'hai ancora fatto, esegui:
+    ```bash
+    mv segreteria_medica seg_medico
+    ```
+    nel terminale prima di procedere.
+  * **Assicurarsi che le cartelle esistano:** Verifica manualmente che all'interno della cartella `lib` esistano le sottocartelle `providers`, `services` e `screens`, e che contengano i file `.dart` con i nomi corretti.
+  * **Correggere tutti gli `import`**: Tutti gli `import` che iniziano con `package:segreteria_medica/` devono essere cambiati in `package:seg_medico/`.
+  * **Correggere gli errori di sintassi specifici in `main.dart`**.
+
+Ecco le modifiche al codice. Assicurati di eseguire prima il comando `mv` se la tua cartella progetto si chiama ancora `segreteria_medica`.
+
+-----
+
+%%FILE: lib/main.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg\_medico/providers/app\_provider.dart';
+import 'package:seg\_medico/services/api\_service.dart';
+import 'package:seg\_medico/services/profile\_manager.dart';
+import 'package:seg\_medico/screens/home\_screen.dart';
+import 'package:seg\_medico/screens/farmaci\_screen.dart';
+import 'package:seg\_medico/screens/appuntamenti\_screen.dart';
+import 'package:seg\_medico/screens/cronologia\_screen.dart';
+import 'package:seg\_medico/screens/settings\_screen.dart';
+import 'package:flutter\_local\_notifications/flutter\_local\_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:flutter\_timezone/flutter\_timezone.dart';
+import 'dart:io' show Platform;
+
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
+
+void main() async {
+WidgetsFlutterBinding.ensureInitialized();
+
+// Initialize time zones for local notifications
+tz.initializeTimeZones();
+try {
+final String? timeZoneName = await FlutterTimezone.getLocalTimezone();
+if (timeZoneName \!= null) {
+tz.setLocalLocation(tz.getLocation(timeZoneName));
+}
+} catch (e) {
+debugPrint('Error getting local timezone: $e');
+}
+
+// Configure local notifications only for platforms where it's typically supported or needed
+if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+await \_configureLocalNotifications();
+}
+
+runApp(
+MultiProvider(
+providers: [
+ChangeNotifierProvider(create: (*) =\> AppProvider()),
+// Correzione: create richiede una funzione che restituisce un'istanza
+Provider\<ApiService\>(create: (*) =\> ApiService()),
+Provider\<ProfileManager\>(create: (*) =\> ProfileManager()),
+ChangeNotifierProvider(create: (*) =\> SettingsProvider()), // Aggiungi SettingsProvider
+],
+child: const MyApp(),
+),
+);
+}
+
+Future\<void\> \_configureLocalNotifications() async {
+const AndroidInitializationSettings initializationSettingsAndroid =
+AndroidInitializationSettings('@mipmap/ic\_launcher');
+
+const DarwinInitializationSettings initializationSettingsDarwin =
+DarwinInitializationSettings(
+requestAlertPermission: true,
+requestBadgePermission: true,
+requestSoundPermission: true,
+);
+
+const InitializationSettings initializationSettings = InitializationSettings(
+android: initializationSettingsAndroid,
+iOS: initializationSettingsDarwin,
+macOS: initializationSettingsDarwin,
+);
+
+await flutterLocalNotificationsPlugin.initialize(
+initializationSettings,
+onDidReceiveNotificationResponse:
+(NotificationResponse notificationResponse) async {
+// Handle notification taps if needed
+// La proprietà payload è di tipo String? e non può essere usata direttamente come bool
+if (notificationResponse.payload \!= null && notificationResponse.payload\!.isNotEmpty) {
+debugPrint('notification payload: ${notificationResponse.payload}');
+}
+},
+onDidReceiveBackgroundNotificationResponse:
+(NotificationResponse notificationResponse) async {
+// Handle background notification taps if needed
+if (notificationResponse.payload \!= null && notificationResponse.payload\!.isNotEmpty) {
+debugPrint('background notification payload: ${notificationResponse.payload}');
+}
+},
+);
+}
+
+class MyApp extends StatelessWidget {
+const MyApp({super.key});
+
+@override
+Widget build(BuildContext context) {
+return MaterialApp(
+title: 'Segreteria Medica',
+theme: ThemeData(
+primarySwatch: Colors.blue,
+),
+// Assicurati che HomeScreen sia un widget valido e che il costruttore sia corretto
+home: const HomeScreen(),
+routes: {
+// Correggi gli errori di sintassi e assicurati che i costruttori siano validi
+'/farmaci': (context) =\> const FarmaciScreen(),
+'/appuntamenti': (context) =\> const AppuntamentiScreen(),
+'/cronologia': (context) =\> const CronologiaScreen(),
+'/impostazioni': (context) =\> const SettingsScreen(),
+},
+);
+}
+}
+%%END
+
+-----
+
+%%FILE: lib/screens/settings\_screen.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg\_medico/providers/settings\_provider.dart'; // Import corretto
+
+class SettingsScreen extends StatefulWidget {
+const SettingsScreen({super.key});
+
+@override
+State\<SettingsScreen\> createState() =\> \_SettingsScreenState();
+}
+
+class \_SettingsScreenState extends State\<SettingsScreen\> {
+final TextEditingController \_courtesyPhraseController = TextEditingController();
+final TextEditingController \_doctorNameController = TextEditingController();
+
+@override
+void initState() {
+super.initState();
+// Inizializza i controller con i valori attuali al caricamento dello schermo
+// Assicurati che SettingsProvider sia fornito nel widget tree sopra questo punto.
+WidgetsBinding.instance.addPostFrameCallback((\_) {
+\_courtesyPhraseController.text = Provider.of\<SettingsProvider\>(context, listen: false).courtesyPhrase;
+\_doctorNameController.text = Provider.of\<SettingsProvider\>(context, listen: false).doctorName;
+});
+}
+
+@override
+void dispose() {
+\_courtesyPhraseController.dispose();
+\_doctorNameController.dispose();
+super.dispose();
+}
+
+@override
+Widget build(BuildContext context) {
+// Ora SettingsProvider dovrebbe essere disponibile grazie alla sua aggiunta in main.dart
+final settingsProvider = Provider.of\<SettingsProvider\>(context);
+
+```
+return Scaffold(
+  appBar: AppBar(
+    title: const Text('Impostazioni'),
+  ),
+  body: Padding(
+    padding: const EdgeInsets.all(16.0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _courtesyPhraseController,
+          decoration: const InputDecoration(
+            labelText: 'Frase di cortesia (es. Benvenuto/a)',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (value) {
+            settingsProvider.setCourtesyPhrase(value);
+          },
+        ),
+        const SizedBox(height: 16.0),
+        TextField(
+          controller: _doctorNameController,
+          decoration: const InputDecoration(
+            labelText: 'Nome del Dottore',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (value) {
+            settingsProvider.setDoctorName(value);
+          },
+        ),
+        const SizedBox(height: 24.0),
+        ElevatedButton(
+          onPressed: () {
+            // Potresti aggiungere un feedback visivo qui, es. un SnackBar
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Impostazioni salvate!')),
+            );
+          },
+          child: const Text('Salva Impostazioni'),
+        ),
+      ],
+    ),
+  ),
+);
+```
+
+}
+}
+%%END
+
+```
+
+---
+
+**Passi da fare dopo queste modifiche:**
+
+1.  **Rinomina la tua cartella di progetto** (se non l'hai già fatto) da `segreteria_medica` a `seg_medico`. Questo è cruciale per risolvere gli errori di "Couldn't resolve the package".
+2.  **Verifica la struttura delle cartelle:** Assicurati che la tua cartella `lib` contenga le sottocartelle `providers`, `services` e `screens`, e che i file al loro interno siano nominati correttamente.
+    * `lib/providers/app_provider.dart`
+    * `lib/providers/settings_provider.dart` (già creato in una risposta precedente)
+    * `lib/services/api_service.dart`
+    * `lib/services/profile_manager.dart`
+    * `lib/screens/home_screen.dart`
+    * `lib/screens/farmaci_screen.dart`
+    * `lib/screens/appuntamenti_screen.dart`
+    * `lib/screens/cronologia_screen.dart`
+    * `lib/screens/settings_screen.dart`
+3.  **Esegui `flutter clean`**: Questo comando rimuoverà i vecchi artefatti di build e i file temporanei che potrebbero causare problemi.
+4.  **Esegui `flutter pub get`**: Per scaricare le dipendenze aggiornate e ricollegare il progetto.
+5.  **Esegui `flutter run`**: Prova a lanciare l'applicazione di nuovo.
+
+Se riscontri ancora errori relativi a file non trovati dopo aver eseguito `flutter clean` e `flutter pub get`, è quasi certamente un problema di naming o di posizione dei file sul tuo filesystem. In quel caso, dovrai verificare manualmente la struttura delle tue cartelle.
+```

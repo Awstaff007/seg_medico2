@@ -1,0 +1,1297 @@
+bano@antix:~/ProgettiFlutter/seg_medico
+$ cat lib/main.dart
+cat lib/screens/home_screen.dart
+cat lib/screens/cronologia_screen.dart
+cat lib/screens/settings_screen.dart
+cat lib/widgets/profile_selection_dialog.dart
+cat lib/screens/login_screen.dart
+cat lib/screens/booking_screen.dart
+cat lib/providers/app_provider.dart
+// lib/main.dart
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg\_medico/providers/app\_provider.dart';
+import 'package:seg\_medico/services/api\_service.dart';
+import 'package:seg\_medico/services/profile\_manager.dart';
+import 'package:seg\_medico/screens/home\_screen.dart';
+import 'package:seg\_medico/screens/farmaci\_screen.dart';
+import 'package:seg\_medico/screens/appuntamenti\_screen.dart';
+import 'package:seg\_medico/screens/cronologia\_screen.dart';
+import 'package:seg\_medico/screens/settings\_screen.dart';
+import 'package:flutter\_local\_notifications/flutter\_local\_notifications.dart';
+
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
+
+void main() async {
+WidgetsFlutterBinding.ensureInitialized();
+
+// Inizializzazione notifiche locali
+const AndroidInitializationSettings initializationSettingsAndroid =
+AndroidInitializationSettings('app\_icon'); // Sostituisci 'app\_icon' con il nome dell'icona nella cartella drawable
+const DarwinInitializationSettings initializationSettingsDarwin =
+DarwinInitializationSettings(
+onDidReceiveLocalNotification: onDidReceiveLocalNotification,
+);
+const InitializationSettings initializationSettings = InitializationSettings(
+android: initializationSettingsAndroid,
+iOS: initializationSettingsDarwin,
+);
+await flutterLocalNotificationsPlugin.initialize(
+initializationSettings,
+onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
+);
+
+runApp(
+MultiProvider(
+providers: [
+Provider\<ApiService\>(create: (*) =\> ApiService()),
+Provider\<ProfileManager\>(create: (*) =\> ProfileManager()),
+ChangeNotifierProvider(
+create: (context) =\> AppProvider(
+context.read\<ApiService\>(),
+context.read\<ProfileManager\>(),
+),
+),
+],
+child: const MyApp(),
+),
+);
+}
+
+// Callback per notifiche iOS in foreground (deprecated, ma utile per compatibilità)
+void onDidReceiveLocalNotification(
+int id, String? title, String? body, String? payload) async {
+// display a dialog with the notification details, tap ok to go to another page
+// showDialog(
+//   context: navigatorKey.currentState\!.overlay\!.context, // Requires a NavigatorKey
+//   builder: (BuildContext context) =\> CupertinoAlertDialog(
+//     title: Text(title ?? ''),
+//     content: Text(body ?? ''),
+//     actions: [
+//       CupertinoDialogAction(
+//         isDefaultAction: true,
+//         child: const Text('Ok'),
+//         onPressed: () async {
+//           Navigator.of(context, rootNavigator: true).pop();
+//           // await Navigator.push(
+//           //   context,
+//           //   MaterialPageRoute(builder: (context) =\> SecondScreen(payload)),
+//           // );
+//         },
+//       )
+//     ],
+//   ),
+// );
+}
+
+// Callback per la risposta alla notifica (quando l'utente interagisce con essa)
+void onDidReceiveNotificationResponse(
+NotificationResponse notificationResponse) async {
+final String? payload = notificationResponse.payload;
+if (notificationResponse.payload \!= null) {
+debugPrint('notification payload: $payload');
+}
+// Qui puoi gestire la navigazione o altre azioni in base al payload
+// Esempio: Navigator.push(context, MaterialPageRoute(builder: (context) =\> SomePage(payload: payload)));
+}
+
+class MyApp extends StatelessWidget {
+const MyApp({super.key});
+
+@override
+Widget build(BuildContext context) {
+return MaterialApp(
+title: 'Segreteria Medico',
+theme: ThemeData(
+primarySwatch: Colors.blue,
+visualDensity: VisualDensity.adaptivePlatformDensity,
+fontFamily: 'Inter', // Imposta il font Inter come predefinito
+),
+home: const HomeScreen(),
+routes: {
+'/farmaci': (context) =\> const FarmaciScreen(),
+'/appuntamenti': (context) =\> const AppuntamentiScreen(),
+'/cronologia': (context) =\> const CronologiaScreen(),
+'/impostazioni': (context) =\> const SettingsScreen(),
+},
+);
+}
+}// lib/screens/home_screen.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart'; // Importa intl
+import 'package:seg_medico/models/models.dart';
+import 'package:seg_medico/providers/app_provider.dart';
+import 'package:seg_medico/widgets/profile_selection_dialog.dart';
+import 'package:seg_medico/screens/farmaci_screen.dart'; // Assicurati sia presente se usi FarmaciScreen
+import 'package:seg_medico/screens/login_screen.dart'; // Assicurati sia presente
+import 'package:seg_medico/screens/booking_screen.dart'; // Assicurati sia presente
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState(); // Corretto: rimossi backslash e sintassi
+}
+
+class _HomeScreenState extends State<HomeScreen> { // Corretto: rimossi backslash
+  @override
+  void initState() {
+    super.initState();
+    // Inizializza o carica dati qui se necessario
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppProvider>(context, listen: false).checkLoginStatus();
+      Provider.of<AppProvider>(context, listen: false).loadProfiles();
+    });
+  }
+
+  String _formatDate(String? date) {
+    if (date == null || date.isEmpty) return 'N/A';
+    try {
+      final dateTime = DateTime.parse(date);
+      return DateFormat('dd/MM/yyyy').format(dateTime);
+    } catch (e) {
+      return 'Data non valida';
+    }
+  }
+
+  String _formatTime(String? time) {
+    if (time == null || time.isEmpty) return 'N/A';
+    try {
+      final timeParts = time.split(':');
+      if (timeParts.length >= 2) {
+        return '${timeParts[0]}:${timeParts[1]}';
+      }
+      return time;
+    } catch (e) {
+      return 'Ora non valida';
+    }
+  }
+
+  Future<void> _showLogoutDialog(BuildContext context) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap button!
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text('Sei sicuro di voler effettuare il logout?'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annulla'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Conferma'),
+              onPressed: () async {
+                await Provider.of<AppProvider>(context, listen: false).logout();
+                Navigator.of(dialogContext).pop();
+                // Naviga alla schermata di login o alla schermata iniziale
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      (Route<dynamic> route) => false,
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showCancelAppointmentDialog(BuildContext context, Appointment appointment) async {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final selectedProfile = appProvider.selectedProfile;
+
+    if (selectedProfile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nessun profilo selezionato per annullare l\'appuntamento.')),
+      );
+      return;
+    }
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Annulla Appuntamento'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text('Sei sicuro di voler annullare l\'appuntamento del $_formatDate(${appointment.data}) alle $_formatTime(${appointment.inizio})?'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annulla'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Conferma'),
+              onPressed: () async {
+                if (selectedProfile.phoneNumber != null) {
+                  final success = await appProvider.cancelAppointment(
+                    appointment.id,
+                    selectedProfile.phoneNumber!,
+                  );
+                  Navigator.of(dialogContext).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(success ? 'Appuntamento annullato con successo!' : 'Errore nell\'annullamento dell\'appuntamento.'),
+                    ),
+                  );
+                } else {
+                  Navigator.of(dialogContext).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Numero di telefono del profilo non disponibile.')),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppProvider>(
+      builder: (context, appProvider, child) {
+        // Se non loggato, reindirizza al login
+        if (!appProvider.isLoggedIn && appProvider.selectedProfile != null) {
+          // Potresti voler reindirizzare a LoginScreen se il token non è valido o se non c'è sessione attiva.
+          // Per ora, solo un messaggio e mostra lo stato di non loggato.
+          // Considera di fare un pushReplacement per non tornare alla home dopo il logout.
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Segretario Medico'),
+            actions: [
+              if (appProvider.isLoggedIn)
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _showLogoutDialog(context),
+                  tooltip: 'Logout',
+                ),
+              IconButton(
+                icon: const Icon(Icons.person_add),
+                onPressed: () async {
+                  await showDialog(
+                    context: context,
+                    builder: (context) => ProfileSelectionDialog(),
+                  );
+                  // Ricarica i profili dopo la chiusura del dialog
+                  appProvider.loadProfiles();
+                },
+                tooltip: 'Gestisci Profili',
+              ),
+            ],
+          ),
+          body: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Display del profilo selezionato
+                if (appProvider.selectedProfile != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Profilo Selezionato:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Text('Nome: ${appProvider.selectedProfile!.name}', style: const TextStyle(fontSize: 16)),
+                            Text('Codice Fiscale: ${appProvider.selectedProfile!.codFis}', style: const TextStyle(fontSize: 16)),
+                            Text('Telefono: ${appProvider.selectedProfile!.phoneNumber ?? 'N/A'}', style: const TextStyle(fontSize: 16)),
+                            Text('Email: ${appProvider.selectedProfile!.email ?? 'N/A'}', style: const TextStyle(fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 16.0),
+                    child: Text(
+                      'Nessun profilo selezionato. Clicca sull\'icona del profilo per selezionarne uno o aggiungerne uno nuovo.',
+                      style: TextStyle(fontSize: 16, color: Colors.red),
+                    ),
+                  ),
+
+                if (appProvider.selectedProfile != null) ...[
+                  if (appProvider.isLoggedIn) ...[
+                    // Informazioni utente loggato
+                    if (appProvider.userInfo != null)
+                      Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Informazioni Utente (API):', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              Text('Nome: ${appProvider.userInfo!.name}', style: const TextStyle(fontSize: 16)),
+                              Text('Email: ${appProvider.userInfo!.email ?? 'N/A'}', style: const TextStyle(fontSize: 16)),
+                              Text('Telefono: ${appProvider.userInfo!.phone ?? 'N/A'}', style: const TextStyle(fontSize: 16)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+
+                    // Prossimo Appuntamento
+                    const Text('Prossimo Appuntamento:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    if (appProvider.upcomingAppointment != null)
+                      Card(
+                        elevation: 4,
+                        margin: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('ID Appuntamento: ${appProvider.upcomingAppointment!.id}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text('Data: ${_formatDate(appProvider.upcomingAppointment!.data)}', style: const TextStyle(fontSize: 16)),
+                              Text('Ora: ${_formatTime(appProvider.upcomingAppointment!.inizio)} - ${_formatTime(appProvider.upcomingAppointment!.fine)}', style: const TextStyle(fontSize: 16)),
+                              Text('Ambulatorio: ${appProvider.upcomingAppointment!.ambulatorioId}', style: const TextStyle(fontSize: 16)),
+                              Text('Numero: ${appProvider.upcomingAppointment!.numero}', style: const TextStyle(fontSize: 16)),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _showCancelAppointmentDialog(context, appProvider.upcomingAppointment!),
+                                  icon: const Icon(Icons.cancel),
+                                  label: const Text('Annulla Appuntamento'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      const Text('Nessun appuntamento in programma.', style: TextStyle(fontSize: 16)),
+
+                    const SizedBox(height: 20),
+
+                    // Azioni principali
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const BookingScreen()),
+                              );
+                            },
+                            icon: const Icon(Icons.calendar_today),
+                            label: const Text('Prenota Visita'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const FarmaciScreen()),
+                              );
+                            },
+                            icon: const Icon(Icons.medication),
+                            label: const Text('Richiedi Farmaci'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ]
+                  else
+                    // Se il profilo è selezionato ma l'utente non è loggato (cioè non ha il token)
+                    Column(
+                      children: [
+                        const Text(
+                          'Devi effettuare l\'accesso per visualizzare i tuoi dati e accedere ai servizi.',
+                          style: TextStyle(fontSize: 16, color: Colors.orange),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => LoginScreen()),
+                            );
+                          },
+                          icon: const Icon(Icons.login),
+                          label: const Text('Accedi Ora'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}// lib/screens/cronologia_screen.dart
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:seg_medico/models/models.dart';
+import 'package:seg_medico/providers/app_provider.dart';
+import 'package:seg_medico/widgets/custom_snackbar.dart';
+
+class CronologiaScreen extends StatefulWidget {
+  const CronologiaScreen({super.key});
+
+  @override
+  State<CronologiaScreen> createState() => _CronologiaScreenState();
+}
+
+class _CronologiaScreenState extends State<CronologiaScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  DateTime? _selectedDateFilter;
+  List<Map<String, String>> _historyItems = [];
+  List<Map<String, String>> _filteredHistoryItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+    _searchController.addListener(_filterHistory);
+  }
+
+  Future<void> _loadHistory() async {
+    // This is mock data for now. In a real app, you'd fetch this from API/local storage.
+    // For appuntamenti, you'd fetch past appointments.
+    // For farmaci, you'd fetch past orders.
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final appointments = await appProvider.getAppointments();
+
+    List<Map<String, String>> tempHistory = [];
+
+    // Add mock farmaci history
+    tempHistory.addAll([
+      {'Data': '15 Lug 2025', 'Tipo': 'Farmaco', 'Descrizione': 'Paracetamolo – febbre persistente'},
+      {'Data': '08 Lug 2025', 'Tipo': 'Farmaco', 'Descrizione': 'Aspirina – dosaggio aumentato'},
+    ]);
+
+    // Add actual appointments
+    for (var app in appointments) {
+      final appDateTime = DateTime.parse('${app.data} ${app.inizio}');
+      if (appDateTime.isBefore(DateTime.now())) { // Only show past appointments
+        tempHistory.add({
+          'Data': DateFormat('dd MMM yyyy').format(appDateTime),
+          'Tipo': 'Appuntamento',
+          'Descrizione': 'Visita in ${app.ambulatorio} alle ${app.inizio}',
+        });
+      }
+    }
+
+    setState(() {
+      _historyItems = tempHistory;
+      _filteredHistoryItems = tempHistory;
+    });
+  }
+
+  void _filterHistory() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredHistoryItems = _historyItems.where((item) {
+        final matchesQuery = item.values.any((value) => value.toLowerCase().contains(query));
+        final matchesDate = _selectedDateFilter == null ||
+            DateFormat('dd MMM yyyy').parse(item['Data']!).isAtSameMomentAs(_selectedDateFilter!);
+        return matchesQuery && matchesDate;
+      }).toList();
+    });
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDateFilter ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null && picked != _selectedDateFilter) {
+      setState(() {
+        _selectedDateFilter = picked;
+        _filterHistory();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('CRONOLOGIA'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.text_fields),
+            onPressed: () {
+              CustomSnackBar.show(context, 'Funzionalità cambio dimensione caratteri non implementata.');
+            },
+          ),
+          Consumer<AppProvider>(
+            builder: (context, appProvider, child) {
+              return DropdownButtonHideUnderline(
+                child: DropdownButton<Profile>(
+                  value: appProvider.selectedProfile,
+                  hint: const Text('Seleziona profilo'),
+                  onChanged: (Profile? newProfile) {
+                    appProvider.selectProfile(newProfile);
+                  },
+                  items: appProvider.profiles.map((Profile profile) {
+                    return DropdownMenuItem<Profile>(
+                      value: profile,
+                      child: Text(profile.name),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
+          ),
+          Consumer<AppProvider>(
+            builder: (context, appProvider, child) {
+              return ElevatedButton(
+                onPressed: () async {
+                  await appProvider.logout();
+                  CustomSnackBar.show(context, 'Logout effettuato.');
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: const Text('Esci'),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Cerca nella cronologia'),
+                  content: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      hintText: 'Cerca per tipo o descrizione...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('Chiudi'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () => _selectDate(context),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (_selectedDateFilter != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  Text('Filtro data: ${DateFormat('dd MMM yyyy').format(_selectedDateFilter!)}'),
+                  IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      setState(() {
+                        _selectedDateFilter = null;
+                        _filterHistory();
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Data')),
+                    DataColumn(label: Text('Tipo')),
+                    DataColumn(label: Text('Descrizione')),
+                  ],
+                  rows: _filteredHistoryItems.map((item) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(item['Data']!)),
+                        DataCell(Text(item['Tipo']!)),
+                        DataCell(Text(item['Descrizione']!)),
+                      ],
+                      onSelectChanged: (selected) {
+                        if (selected == true) {
+                          // Handle tap on row to open detail
+                          CustomSnackBar.show(context, 'Dettaglio per: ${item['Descrizione']}');
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: BottomAppBar(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (String value) {
+                final appProvider = Provider.of<AppProvider>(context, listen: false);
+                if (!appProvider.isLoggedIn) {
+                  CustomSnackBar.show(context, 'Accedi per accedere al menu.');
+                  return;
+                }
+                switch (value) {
+                  case 'cronologia':
+                  // Already on cronologia screen
+                    break;
+                  case 'farmaci':
+                    Navigator.pushNamed(context, '/farmaci');
+                    break;
+                  case 'appuntamenti':
+                    Navigator.pushNamed(context, '/appuntamenti');
+                    break;
+                  case 'impostazioni':
+                    Navigator.pushNamed(context, '/impostazioni');
+                    break;
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(
+                  value: 'cronologia',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Cronologia' : '⦿ Cronologia (dis.)'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'farmaci',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Farmaci' : '⦿ Farmaci (dis.)'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'appuntamenti',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Appuntamenti' : '⦿ Appuntamenti (dis.)'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'impostazioni',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Impostazioni' : '⦿ Impostazioni (dis.)'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}// lib/screens/settings_screen.dart
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg_medico/providers/app_provider.dart';
+import 'package:seg_medico/widgets/custom_snackbar.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:seg_medico/main.dart'; // Importa main.dart per accedere a flutterLocalNotificationsPlugin
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  double _textSize = 1.0; // Default text size (100%)
+  bool _repeatFarmaci = true;
+  int _farmaciRepeatDays = 30;
+  bool _appointmentDayBefore = true;
+  bool _appointmentMinBefore = true;
+  int _appointmentMinBeforeValue = 30;
+  String _theme = 'Chiaro'; // 'Chiaro' or 'Scuro'
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    // TODO: Load settings from SharedPreferences or similar
+    // For now, using default values
+  }
+
+  Future<void> _saveSettings() async {
+    // TODO: Save settings to SharedPreferences or similar
+    CustomSnackBar.show(context, 'Impostazioni salvate!');
+  }
+
+  Future<void> _testNotification() async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+    AndroidNotificationDetails(
+      'your channel id',
+      'your channel name',
+      channelDescription: 'your channel description',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: false,
+    );
+    const DarwinNotificationDetails darwinPlatformChannelSpecifics =
+    DarwinNotificationDetails();
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+      iOS: darwinPlatformChannelSpecifics,
+    );
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      'Notifica di prova',
+      'Questa è una notifica di prova dalla tua app.',
+      platformChannelSpecifics,
+      payload: 'test_notification',
+    );
+    CustomSnackBar.show(context, 'Notifica di prova inviata!');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('IMPOSTAZIONI'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.text_fields),
+            onPressed: () {
+              CustomSnackBar.show(context, 'Funzionalità cambio dimensione caratteri non implementata.');
+            },
+          ),
+          Consumer<AppProvider>(
+            builder: (context, appProvider, child) {
+              return DropdownButtonHideUnderline(
+                child: DropdownButton<Profile>(
+                  value: appProvider.selectedProfile,
+                  hint: const Text('Seleziona profilo'),
+                  onChanged: (Profile? newProfile) {
+                    appProvider.selectProfile(newProfile);
+                  },
+                  items: appProvider.profiles.map((Profile profile) {
+                    return DropdownMenuItem<Profile>(
+                      value: profile,
+                      child: Text(profile.name),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
+          ),
+          Consumer<AppProvider>(
+            builder: (context, appProvider, child) {
+              return ElevatedButton(
+                onPressed: () async {
+                  await appProvider.logout();
+                  CustomSnackBar.show(context, 'Logout effettuato.');
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: const Text('Esci'),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('📏 Dimensione testo: ${(_textSize * 100).toInt()}%', style: const TextStyle(fontSize: 18)),
+            Slider(
+              value: _textSize,
+              min: 0.5,
+              max: 2.0,
+              divisions: 3, // 50%, 100%, 150%, 200%
+              label: '${(_textSize * 100).toInt()}%',
+              onChanged: (newValue) {
+                setState(() {
+                  _textSize = newValue;
+                  // TODO: Apply global text size change
+                });
+              },
+            ),
+            const SizedBox(height: 20),
+            Text('🔔 Farmaci:', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                const Text('Ripetizione ogni '),
+                SizedBox(
+                  width: 50,
+                  child: TextField(
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    controller: TextEditingController(text: _farmaciRepeatDays.toString()),
+                    onChanged: (value) {
+                      setState(() {
+                        _farmaciRepeatDays = int.tryParse(value) ?? 30;
+                      });
+                    },
+                  ),
+                ),
+                const Text(' giorni'),
+                Switch(
+                  value: _repeatFarmaci,
+                  onChanged: (newValue) {
+                    setState(() {
+                      _repeatFarmaci = newValue;
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text('🔔 Appuntamenti:', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                const Text('Avviso il giorno prima'),
+                const Spacer(),
+                Switch(
+                  value: _appointmentDayBefore,
+                  onChanged: (newValue) {
+                    setState(() {
+                      _appointmentDayBefore = newValue;
+                    });
+                  },
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('Avviso '),
+                SizedBox(
+                  width: 50,
+                  child: TextField(
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    controller: TextEditingController(text: _appointmentMinBeforeValue.toString()),
+                    onChanged: (value) {
+                      setState(() {
+                        _appointmentMinBeforeValue = int.tryParse(value) ?? 30;
+                      });
+                    },
+                  ),
+                ),
+                const Text(' min prima'),
+                Switch(
+                  value: _appointmentMinBefore,
+                  onChanged: (newValue) {
+                    setState(() {
+                      _appointmentMinBefore = newValue;
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text('Permessi:', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('◦ Push Notifications'), // Placeholder, actual permission check/request needed
+            const SizedBox(height: 20),
+            Text('🎨 Tema:', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                Radio<String>(
+                  value: 'Chiaro',
+                  groupValue: _theme,
+                  onChanged: (value) {
+                    setState(() {
+                      _theme = value!;
+                      // TODO: Apply theme change
+                    });
+                  },
+                ),
+                const Text('Chiaro'),
+                Radio<String>(
+                  value: 'Scuro',
+                  groupValue: _theme,
+                  onChanged: (value) {
+                    setState(() {
+                      _theme = value!;
+                      // TODO: Apply theme change
+                    });
+                  },
+                ),
+                const Text('Scuro'),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _testNotification,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      textStyle: const TextStyle(fontSize: 18),
+                    ),
+                    child: const Text('PROVA NOTIFICA'),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _saveSettings,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      textStyle: const TextStyle(fontSize: 18),
+                    ),
+                    child: const Text('SALVA'),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context); // Go back without saving
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      textStyle: const TextStyle(fontSize: 18),
+                    ),
+                    child: const Text('ANNULLA'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: BottomAppBar(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (String value) {
+                final appProvider = Provider.of<AppProvider>(context, listen: false);
+                if (!appProvider.isLoggedIn) {
+                  CustomSnackBar.show(context, 'Accedi per accedere al menu.');
+                  return;
+                }
+                switch (value) {
+                  case 'cronologia':
+                    Navigator.pushNamed(context, '/cronologia');
+                    break;
+                  case 'farmaci':
+                    Navigator.pushNamed(context, '/farmaci');
+                    break;
+                  case 'appuntamenti':
+                    Navigator.pushNamed(context, '/appuntamenti');
+                    break;
+                  case 'impostazioni':
+                  // Already on impostazioni screen
+                    break;
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(
+                  value: 'cronologia',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Cronologia' : '⦿ Cronologia (dis.)'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'farmaci',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Farmaci' : '⦿ Farmaci (dis.)'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'appuntamenti',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Appuntamenti' : '⦿ Appuntamenti (dis.)'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'impostazioni',
+                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
+                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Impostazioni' : '⦿ Impostazioni (dis.)'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}cat: lib/widgets/profile_selection_dialog.dart: File o directory non esistente
+cat: lib/screens/login_screen.dart: File o directory non esistente
+cat: lib/screens/booking_screen.dart: File o directory non esistente
+// lib/providers/app_provider.dart
+
+import 'package:flutter/material.dart';
+import 'package:seg_medico/models/models.dart';
+import 'package:seg_medico/services/api_service.dart';
+import 'package:seg_medico/services/profile_manager.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+class AppProvider with ChangeNotifier {
+  final ApiService _apiService;
+  final ProfileManager _profileManager;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
+  UserInfo? _userInfo;
+  UserInfo? get userInfo => _userInfo;
+
+  bool _isLoggedIn = false;
+  bool get isLoggedIn => _isLoggedIn;
+
+  Profile? _selectedProfile;
+  Profile? get selectedProfile => _selectedProfile;
+
+  List<Profile> _profiles = [];
+  List<Profile> get profiles => _profiles;
+
+  Appointment? _upcomingAppointment;
+  Appointment? get upcomingAppointment => _upcomingAppointment;
+
+  AppProvider(this._apiService, this._profileManager) {
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    await loadProfiles();
+    await _loadSelectedProfile();
+    await checkLoginStatus();
+  }
+
+  Future<void> loadProfiles() async {
+    _profiles = await _profileManager.getProfiles();
+    notifyListeners();
+  }
+
+  Future<void> _loadSelectedProfile() async {
+    try {
+      _selectedProfile = await _profileManager.getDefaultProfile();
+    } catch (e) {
+      _selectedProfile = null; // No default profile or not found
+    }
+    notifyListeners();
+  }
+
+  Future<void> selectProfile(Profile? profile) async {
+    _selectedProfile = profile;
+    if (profile != null) {
+      await _profileManager.setDefaultProfile(profile.name);
+    } else {
+      await _profileManager.clearDefaultProfile();
+    }
+    notifyListeners();
+  }
+
+  Future<void> addProfile(Profile profile) async {
+    await _profileManager.addProfile(profile);
+    await loadProfiles();
+  }
+
+  Future<void> updateProfile(Profile profile) async {
+    await _profileManager.updateProfile(profile);
+    await loadProfiles();
+    if (_selectedProfile?.codFis == profile.codFis) {
+      _selectedProfile = profile; // Update selected profile if it was the one edited
+    }
+    notifyListeners();
+  }
+
+  Future<void> deleteProfile(String codFis) async {
+    await _profileManager.deleteProfile(codFis);
+    await loadProfiles();
+    if (_selectedProfile?.codFis == codFis) {
+      _selectedProfile = null; // Deselect if the deleted profile was selected
+      await _profileManager.clearDefaultProfile();
+    }
+    notifyListeners();
+  }
+
+  Future<bool> requestOtp(String codFis, String phoneNumber) async {
+    return await _apiService.requestOtp(codFis, phoneNumber);
+  }
+
+  Future<bool> login(String codFis, String phoneNumber, String otp) async {
+    try {
+      final token = await _apiService.login(codFis, phoneNumber, otp);
+      if (token != null) {
+        _isLoggedIn = true;
+        await _fetchUserInfoAndAppointments();
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Login error in provider: $e');
+      return false;
+    }
+  }
+
+  Future<void> logout() async {
+    await _apiService.removeToken();
+    _isLoggedIn = false;
+    _userInfo = null;
+    _upcomingAppointment = null;
+    notifyListeners();
+  }
+
+  Future<void> checkLoginStatus() async {
+    final token = await _apiService.getToken();
+    if (token != null) {
+      _isLoggedIn = true;
+      await _fetchUserInfoAndAppointments();
+    } else {
+      _isLoggedIn = false;
+      _userInfo = null;
+      _upcomingAppointment = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> _fetchUserInfoAndAppointments() async {
+    _userInfo = await _apiService.getUserInfo();
+    if (_userInfo != null) {
+      await fetchUpcomingAppointment();
+    }
+    notifyListeners();
+  }
+
+  Future<void> fetchUpcomingAppointment() async {
+    if (_isLoggedIn) {
+      final appointments = await _apiService.getAppointments();
+      if (appointments.isNotEmpty) {
+        // Find the next upcoming appointment
+        final now = DateTime.now();
+        _upcomingAppointment = appointments.firstWhere(
+          (app) {
+            final appDateTime = DateTime.parse('${app.data} ${app.inizio}');
+            return appDateTime.isAfter(now);
+          },
+          orElse: () => throw Exception('No upcoming appointments found'),
+        );
+      } else {
+        _upcomingAppointment = null;
+      }
+    } else {
+      _upcomingAppointment = null;
+    }
+    notifyListeners();
+  }
+
+  Future<bool> cancelAppointment(int appointmentId, String phoneNumber) async {
+    final success = await _apiService.cancelAppointment(appointmentId, phoneNumber);
+    if (success) {
+      await fetchUpcomingAppointment(); // Refresh upcoming appointment
+    }
+    return success;
+  }
+
+  Future<List<AppointmentSlot>> getAppointmentSlots(int ambulatorioId, int numero) async {
+    return await _apiService.getAppointmentSlots(ambulatorioId, numero);
+  }
+
+  Future<bool> bookAppointment({
+    required int ambulatorioId,
+    required int numero,
+    required String data,
+    required String inizio,
+    required String fine,
+    required String telefono,
+    String? email,
+  }) async {
+    final appointmentId = await _apiService.bookAppointment(
+      ambulatorioId: ambulatorioId,
+      numero: numero,
+      data: data,
+      inizio: inizio,
+      fine: fine,
+      telefono: telefono,
+    );
+    if (appointmentId != null) {
+      final success = await _apiService.sendConfirmation(
+        id: appointmentId,
+        email: email,
+        cellulare: telefono,
+      );
+      if (success) {
+        await fetchUpcomingAppointment(); // Refresh upcoming appointment
+      }
+      return success;
+    }
+    return false;
+  }
+
+  Future<bool> orderFarmaci(String testoFarmaco, String phoneNumber, String? email) async {
+    final orderId = await _apiService.orderFarmaci(testoFarmaco, phoneNumber);
+    if (orderId != null) {
+      return await _apiService.sendConfirmation(id: orderId, cellulare: phoneNumber, email: email);
+    }
+    return false;
+  }
+}bano@antix:~/ProgettiFlutter/seg_medico
+$ 
