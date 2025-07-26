@@ -15,9 +15,11 @@ class AppuntamentiScreen extends StatefulWidget {
 }
 
 class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
-  List<AppointmentSlot> _availableSlots = [];
+  // Changed to Map<DateTime, List<String>>
+  Map<DateTime, List<String>> _availableSlots = {};
+  List<DateTime> _availableDates = []; // Added to store sorted dates
   bool _isLoadingSlots = false;
-  String? _selectedSlot;
+  String? _selectedSlotDisplay; // Changed to store the display string
   final TextEditingController _notesController = TextEditingController();
 
   @override
@@ -29,30 +31,37 @@ class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
   Future<void> _fetchAvailableSlots() async {
     setState(() {
       _isLoadingSlots = true;
-      _availableSlots = [];
-      _selectedSlot = null;
+      _availableSlots = {};
+      _availableDates = [];
+      _selectedSlotDisplay = null;
     });
 
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final userInfo = appProvider.userInfo;
+    final selectedProfile = appProvider.selectedProfile; // Also need selected profile for ambulatorio
 
+    // Ensure userInfo and ambulatori are available before fetching slots
     if (userInfo != null && userInfo.ambulatori.isNotEmpty) {
-      final ambulatorioId = userInfo.ambulatori.first.id; // Assuming the first ambulatorio
-      final slots = await appProvider.getAppointmentSlots(ambulatorioId, 1); // Request 1 slot
+      // Assuming ambulatorioId comes from the selected profile or user's primary ambulatorio
+      // For simplicity, using the first ambulatorio from UserInfo, adjust if needed
+      final ambulatorioId = userInfo.ambulatori.first.id;
+      // You might need to determine `numero` based on context, here assuming a default of 1
+      final slots = await appProvider.getAppointmentSlots(ambulatorioId, 1);
       setState(() {
         _availableSlots = slots;
+        _availableDates = slots.keys.toList()..sort(); // Sort dates
         _isLoadingSlots = false;
       });
     } else {
       setState(() {
         _isLoadingSlots = false;
       });
-      CustomSnackBar.show(context, 'Nessun ambulatorio disponibile o informazioni utente mancanti.', isError: true);
+      CustomSnackBar.show(context, 'Nessun ambulatorio disponibile o informazioni utente/profilo mancanti.', isError: true);
     }
   }
 
   Future<void> _bookAppointment() async {
-    if (_selectedSlot == null) {
+    if (_selectedSlotDisplay == null) {
       CustomSnackBar.show(context, 'Seleziona uno slot disponibile per prenotare.', isError: true);
       return;
     }
@@ -62,34 +71,37 @@ class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
     final selectedProfile = appProvider.selectedProfile;
 
     if (userInfo == null || selectedProfile == null || userInfo.ambulatori.isEmpty) {
-      CustomSnackBar.show(context, 'Informazioni utente o profilo non disponibili.', isError: true);
+      CustomSnackBar.show(context, 'Informazioni utente o profilo non disponibili. Assicurati di aver selezionato un profilo e che l\'utente abbia ambulatori associati.', isError: true);
       return;
     }
 
-    final ambulatorioId = userInfo.ambulatori.first.id;
-    final parts = _selectedSlot!.split(' – ');
+    final ambulatorioId = userInfo.ambulatori.first.id; // Using the first ambulatorio
+    final parts = _selectedSlotDisplay!.split(' – ');
     final datePart = parts[0];
     final timePart = parts[1];
 
-    final data = DateFormat('dd MMM yyyy').parse(datePart);
-    final formattedDate = DateFormat('yyyy/MM/dd').format(data);
-    final inizio = timePart;
-    final fine = DateFormat('HH:mm').format(DateFormat('HH:mm').parse(timePart).add(const Duration(minutes: 10))); // Assuming 10 min duration
+    final data = DateFormat('dd MMM yyyy', 'it_IT').parse(datePart); // Use Italian locale for parsing
+    final formattedDate = DateFormat('yyyy/MM/dd').format(data); // Format to API required format
+    final inizio = timePart; // This is already in HH:mm format
+    // Calculate 'fine' based on 'inizio', assuming a fixed duration (e.g., 15 minutes)
+    final parsedInizio = DateFormat('HH:mm').parse(inizio);
+    final fine = DateFormat('HH:mm').format(parsedInizio.add(const Duration(minutes: 15))); // Assuming 15 min duration
 
     final success = await appProvider.bookAppointment(
       ambulatorioId: ambulatorioId,
-      numero: 1, // Booking 1 slot
+      numero: 1, // Booking 1 slot, adjust if API supports multiple
       data: formattedDate,
       inizio: inizio,
       fine: fine,
       telefono: selectedProfile.phoneNumber,
-      email: selectedProfile.codFis, // Using codFis as email for this API
+      email: selectedProfile.email, // Use email from profile
     );
 
     if (success) {
       CustomSnackBar.show(context, 'Appuntamento prenotato con successo!');
       _notesController.clear(); // Clear notes after booking
-      Navigator.pop(context); // Go back to home
+      _fetchAvailableSlots(); // Refresh slots after booking
+      // Optionally navigate back or show a confirmation screen
     } else {
       CustomSnackBar.show(context, 'Errore durante la prenotazione. Riprova.', isError: true);
     }
@@ -138,7 +150,8 @@ class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
                 onPressed: () async {
                   await appProvider.logout();
                   CustomSnackBar.show(context, 'Logout effettuato.');
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  // Ensure navigating back to the login/initial screen
+                  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
                 },
                 child: const Text('Esci'),
               );
@@ -158,24 +171,41 @@ class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
             const SizedBox(height: 10),
             _isLoadingSlots
                 ? const Center(child: CircularProgressIndicator())
-                : _availableSlots.isEmpty
+                : _availableDates.isEmpty
                     ? const Text('Nessuna disponibilità trovata.')
                     : Expanded(
                         child: ListView.builder(
-                          itemCount: _availableSlots.length,
-                          itemBuilder: (context, index) {
-                            final slot = _availableSlots[index];
-                            final displayDate = DateFormat('dd MMM yyyy').format(DateTime.parse(slot.data));
-                            final displayText = '$displayDate – ${slot.inizio}';
-                            return RadioListTile<String>(
-                              title: Text(displayText),
-                              value: displayText,
-                              groupValue: _selectedSlot,
-                              onChanged: (String? value) {
-                                setState(() {
-                                  _selectedSlot = value;
-                                });
-                              },
+                          itemCount: _availableDates.length,
+                          itemBuilder: (context, dateIndex) {
+                            final date = _availableDates[dateIndex];
+                            final times = _availableSlots[date]!;
+                            final displayDate = DateFormat('dd MMM yyyy', 'it_IT').format(date);
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Text(
+                                    displayDate,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                ),
+                                ...times.map((time) {
+                                  final displayText = '$displayDate – $time';
+                                  return RadioListTile<String>(
+                                    title: Text(displayText),
+                                    value: displayText,
+                                    groupValue: _selectedSlotDisplay,
+                                    onChanged: (String? value) {
+                                      setState(() {
+                                        _selectedSlotDisplay = value;
+                                      });
+                                    },
+                                  );
+                                }).toList(),
+                                const Divider(), // Separator between dates
+                              ],
                             );
                           },
                         ),
@@ -200,7 +230,7 @@ class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: _selectedSlot != null ? _bookAppointment : null,
+                    onPressed: _selectedSlotDisplay != null ? _bookAppointment : null,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       textStyle: const TextStyle(fontSize: 18),

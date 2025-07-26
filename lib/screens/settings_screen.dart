@@ -70,45 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('IMPOSTAZIONI'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.text_fields),
-            onPressed: () {
-              CustomSnackBar.show(context, 'Funzionalità cambio dimensione caratteri non implementata.');
-            },
-          ),
-          Consumer<AppProvider>(
-            builder: (context, appProvider, child) {
-              return DropdownButtonHideUnderline(
-                child: DropdownButton<Profile>(
-                  value: appProvider.selectedProfile,
-                  hint: const Text('Seleziona profilo'),
-                  onChanged: (Profile? newProfile) {
-                    appProvider.selectProfile(newProfile);
-                  },
-                  items: appProvider.profiles.map((Profile profile) {
-                    return DropdownMenuItem<Profile>(
-                      value: profile,
-                      child: Text(profile.name),
-                    );
-                  }).toList(),
-                ),
-              );
-            },
-          ),
-          Consumer<AppProvider>(
-            builder: (context, appProvider, child) {
-              return ElevatedButton(
-                onPressed: () async {
-                  await appProvider.logout();
-                  CustomSnackBar.show(context, 'Logout effettuato.');
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                child: const Text('Esci'),
-              );
-            },
-          ),
-        ],
+        // Removed profile dropdown and logout button from AppBar
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

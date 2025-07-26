@@ -109,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> { // Corretto: rimossi backslas
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                Text('Sei sicuro di voler annullare l\'appuntamento del $_formatDate(${appointment.data}) alle $_formatTime(${appointment.inizio})?'),
+                Text('Sei sicuro di voler annullare l\'appuntamento del ${_formatDate(appointment.data)} alle ${_formatTime(appointment.inizio)}?'),
               ],
             ),
           ),
@@ -153,13 +153,6 @@ class _HomeScreenState extends State<HomeScreen> { // Corretto: rimossi backslas
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, appProvider, child) {
-        // Se non loggato, reindirizza al login
-        if (!appProvider.isLoggedIn && appProvider.selectedProfile != null) {
-          // Potresti voler reindirizzare a LoginScreen se il token non è valido o se non c'è sessione attiva.
-          // Per ora, solo un messaggio e mostra lo stato di non loggato.
-          // Considera di fare un pushReplacement per non tornare alla home dopo il logout.
-        }
-
         return Scaffold(
           appBar: AppBar(
             title: const Text('Segretario Medico'),

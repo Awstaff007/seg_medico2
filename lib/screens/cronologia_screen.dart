@@ -32,7 +32,10 @@ class _CronologiaScreenState extends State<CronologiaScreen> {
     // For appuntamenti, you'd fetch past appointments.
     // For farmaci, you'd fetch past orders.
     final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final appointments = await appProvider.getAppointments();
+    // TODO: Implementare appProvider.getAppointments() e i relativi modelli di dati
+    // Placeholder per evitare l'errore di compilazione
+    // final appointments = await appProvider.getAppointments();
+    final List<dynamic> appointments = []; // Sostituisci con il tipo corretto una volta implementato
 
     List<Map<String, String>> tempHistory = [];
 
