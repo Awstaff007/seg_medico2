@@ -1,70 +1,73 @@
-// lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:seg_medico/providers/app_provider.dart';
-import 'package:seg_medico/services/api_service.dart';
-import 'package:seg_medico/services/profile_manager.dart';
 import 'package:seg_medico/screens/home_screen.dart';
-import 'package:seg_medico/screens/farmaci_screen.dart';
+import 'package:seg_medico/services/api_service.dart';
+import 'package:seg_medico/utils/profile_manager.dart';
+import 'package:seg_medico/themes/app_theme.dart';
 import 'package:seg_medico/screens/appuntamenti_screen.dart';
+import 'package:seg_medico/screens/farmaci_screen.dart';
 import 'package:seg_medico/screens/cronologia_screen.dart';
 import 'package:seg_medico/screens/settings_screen.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-FlutterLocalNotificationsPlugin();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('it_IT', null);
 
-  // Inizializzazione notifiche locali
-  const AndroidInitializationSettings initializationSettingsAndroid =
-  AndroidInitializationSettings('app_icon'); // Sostituisci 'app_icon' con il nome dell'icona nella cartella drawable
-  const DarwinInitializationSettings initializationSettingsDarwin =
-  DarwinInitializationSettings();
-  final InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-    iOS: initializationSettingsDarwin,
-  );
-  await flutterLocalNotificationsPlugin.initialize(
-    initializationSettings,
-    onDidReceiveNotificationResponse: (NotificationResponse notificationResponse) async {
-      // Gestisci la risposta alla notifica qui
-      if (notificationResponse.payload != null) { // Corrected: removed backslash before !=
-        debugPrint('notification payload: ${notificationResponse.payload}');
-      }
-    },
-  );
+  // Inizializza i servizi che verranno iniettati nel provider
+  final profileManager = ProfileManager();
+  await profileManager.init();
 
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider<ApiService>(create: (_) => ApiService()), // Corrected: removed backslashes, changed (*) to (_)
-        ChangeNotifierProvider(create: (_) => AppProvider()),
-      ],
-      child: const MyApp(),
-    ),
-  );
+  final apiService = ApiService();
+
+  runApp(MyApp(
+    profileManager: profileManager,
+    apiService: apiService,
+  ));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final ProfileManager profileManager;
+  final ApiService apiService;
+
+  const MyApp({
+    Key? key,
+    required this.profileManager,
+    required this.apiService,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Segretario Medico',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => AppProvider(apiService, profileManager),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(),
+        ),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Segretario Medico',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.themeMode,
+            home: const HomeScreen(),
+            routes: {
+              '/home': (context) => const HomeScreen(),
+              '/farmaci': (context) => const FarmaciScreen(),
+              '/appuntamenti': (context) => const AppuntamentiScreen(),
+              '/cronologia': (context) => const CronologiaScreen(),
+              '/settings': (context) => const SettingsScreen(),
+            },
+            debugShowCheckedModeBanner: false,
+          );
+        },
       ),
-      home: const HomeScreen(),
-      routes: {
-        '/farmaci': (context) => const FarmaciScreen(), // Corrected: removed backslash
-        '/appuntamenti': (context) => const AppuntamentiScreen(), // Corrected: removed backslash
-        '/cronologia': (context) => const CronologiaScreen(), // Corrected: removed backslash
-        '/impostazioni': (context) => const SettingsScreen(), // Corrected: removed backslash
-      },
     );
   }
 }

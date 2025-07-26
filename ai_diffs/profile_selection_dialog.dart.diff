@@ -1,0 +1,326 @@
+--- a/profile_selection_dialog.dart+++ b/profile_selection_dialog.dart@@ -1,201 +1,173 @@-// lib/widgets/profile_selection_dialog.dart
+ import 'package:flutter/material.dart';
+ import 'package:provider/provider.dart';
+ import 'package:seg_medico/models/models.dart';
+ import 'package:seg_medico/providers/app_provider.dart';
+-import 'package:seg_medico/widgets/custom_snackbar.dart'; // Added for showing messages
++import 'package:uuid/uuid.dart';
+ 
+ class ProfileSelectionDialog extends StatefulWidget {
+-  const ProfileSelectionDialog({super.key});
++  const ProfileSelectionDialog({Key? key}) : super(key: key);
+ 
+   @override
+-  State<ProfileSelectionDialog> createState() => _ProfileSelectionDialogState();
++  _ProfileSelectionDialogState createState() => _ProfileSelectionDialogState();
+ }
+ 
+ class _ProfileSelectionDialogState extends State<ProfileSelectionDialog> {
++  final _formKey = GlobalKey<FormState>();
+   final _nameController = TextEditingController();
+-  final _fiscalCodeController = TextEditingController(); // This controller is for codFis
+-  final _phoneNumberController = TextEditingController();
+-  final _emailController = TextEditingController(); // Added email controller
++  final _codFisController = TextEditingController();
++  final _phoneController = TextEditingController();
++  final _emailController = TextEditingController();
++
+   Profile? _editingProfile;
+ 
+   @override
+   void dispose() {
+     _nameController.dispose();
+-    _fiscalCodeController.dispose();
+-    _phoneNumberController.dispose();
+-    _emailController.dispose(); // Dispose email controller
++    _codFisController.dispose();
++    _phoneController.dispose();
++    _emailController.dispose();
+     super.dispose();
+-  }
+-
+-  void _saveProfile(BuildContext context) async {
+-    final appProvider = Provider.of<AppProvider>(context, listen: false);
+-
+-    // Basic validation
+-    if (_nameController.text.isEmpty ||
+-        _fiscalCodeController.text.isEmpty ||
+-        _phoneNumberController.text.isEmpty) {
+-      CustomSnackBar.show(context, 'Tutti i campi obbligatori devono essere compilati.', isError: true);
+-      return;
+-    }
+-
+-    if (_editingProfile == null) {
+-      // Add new profile
+-      final newProfile = Profile(
+-        name: _nameController.text,
+-        codFis: _fiscalCodeController.text,
+-        phoneNumber: _phoneNumberController.text,
+-        email: _emailController.text.isEmpty ? null : _emailController.text,
+-      );
+-      await appProvider.addProfile(newProfile);
+-      CustomSnackBar.show(context, 'Profilo aggiunto con successo!');
+-    } else {
+-      // Update existing profile
+-      final updatedProfile = _editingProfile!.copyWith(
+-        name: _nameController.text,
+-        codFis: _fiscalCodeController.text,
+-        phoneNumber: _phoneNumberController.text,
+-        email: _emailController.text.isEmpty ? null : _emailController.text,
+-      );
+-      await appProvider.updateProfile(updatedProfile);
+-      CustomSnackBar.show(context, 'Profilo aggiornato con successo!');
+-    }
+-    Navigator.of(context).pop();
+   }
+ 
+   void _editProfile(Profile profile) {
+     setState(() {
+       _editingProfile = profile;
+       _nameController.text = profile.name;
+-      _fiscalCodeController.text = profile.codFis;
+-      _phoneNumberController.text = profile.phoneNumber;
+-      _emailController.text = profile.email ?? ''; // Set email, handle null
++      _codFisController.text = profile.codFis;
++      _phoneController.text = profile.phone;
++      _emailController.text = profile.email ?? '';
+     });
+   }
+ 
+-  void _deleteProfile(Profile profile) async {
++  void _clearForm() {
++    setState(() {
++      _editingProfile = null;
++      _formKey.currentState?.reset();
++      _nameController.clear();
++      _codFisController.clear();
++      _phoneController.clear();
++      _emailController.clear();
++    });
++  }
++
++  void _saveProfile() async {
++    if (_formKey.currentState?.validate() ?? false) {
++      final appProvider = Provider.of<AppProvider>(context, listen: false);
++      final profile = Profile(
++        id: _editingProfile?.id ?? const Uuid().v4(),
++        name: _nameController.text,
++        codFis: _codFisController.text.toUpperCase(),
++        phone: _phoneController.text,
++        email: _emailController.text.isNotEmpty ? _emailController.text : null,
++      );
++      await appProvider.addProfile(profile);
++      _clearForm();
++    }
++  }
++
++  void _deleteProfile(String profileId) async {
+     final appProvider = Provider.of<AppProvider>(context, listen: false);
+-    // Add confirmation dialog for deletion
+-    final bool? confirm = await showDialog<bool>(
+-      context: context,
+-      builder: (context) => AlertDialog(
+-        title: const Text('Elimina Profilo'),
+-        content: Text('Sei sicuro di voler eliminare il profilo di ${profile.name}?'),
+-        actions: [
+-          TextButton(
+-            onPressed: () => Navigator.of(context).pop(false),
+-            child: const Text('Annulla'),
+-          ),
+-          TextButton(
+-            onPressed: () => Navigator.of(context).pop(true),
+-            child: const Text('Elimina', style: TextStyle(color: Colors.red)),
+-          ),
+-        ],
+-      ),
+-    );
+-
+-    if (confirm == true) {
+-      await appProvider.deleteProfile(profile.codFis);
+-      CustomSnackBar.show(context, 'Profilo eliminato con successo!');
+-      // If the deleted profile was the selected one, clear selectedProfile
+-      if (appProvider.selectedProfile?.codFis == profile.codFis) {
+-        appProvider.selectProfile(null);
+-      }
+-      // Refresh the list and potentially close the dialog if no profiles remain or if editing the deleted one
+-      if (appProvider.profiles.isEmpty || _editingProfile?.codFis == profile.codFis) {
+-        Navigator.of(context).pop();
+-      }
++    await appProvider.deleteProfile(profileId);
++    if (_editingProfile?.id == profileId) {
++      _clearForm();
+     }
+   }
+ 
+   @override
+   Widget build(BuildContext context) {
++    final appProvider = context.watch<AppProvider>();
++    final profiles = appProvider.getProfiles();
++
+     return AlertDialog(
+-      title: const Text('Gestisci Profili'),
++      title: Text(_editingProfile == null ? 'Aggiungi Profilo' : 'Modifica Profilo'),
+       content: SingleChildScrollView(
+-        child: Consumer<AppProvider>(
+-          builder: (context, appProvider, child) {
+-            return Column(
+-              mainAxisSize: MainAxisSize.min,
+-              children: [
+-                if (appProvider.profiles.isNotEmpty)
+-                  ListView.builder(
+-                    shrinkWrap: true,
+-                    itemCount: appProvider.profiles.length,
+-                    itemBuilder: (context, index) {
+-                      final profile = appProvider.profiles[index];
+-                      return ListTile(
+-                        title: Text(profile.name),
+-                        subtitle: Text('${profile.codFis} - ${profile.phoneNumber}'),
+-                        trailing: Row(
+-                          mainAxisSize: MainAxisSize.min,
+-                          children: [
+-                            IconButton(
+-                              icon: const Icon(Icons.edit),
+-                              onPressed: () => _editProfile(profile),
+-                            ),
+-                            IconButton(
+-                              icon: const Icon(Icons.delete),
+-                              onPressed: () => _deleteProfile(profile),
+-                            ),
+-                          ],
+-                        ),
+-                        onTap: () {
+-                          // Corrected: Use selectProfile method
+-                          appProvider.selectProfile(profile);
+-                          Navigator.of(context).pop(); // Close dialog after selection
+-                          CustomSnackBar.show(context, 'Profilo ${profile.name} selezionato.');
+-                        },
+-                      );
+-                    },
+-                  ),
+-                const SizedBox(height: 20),
+-                TextField(
+-                  controller: _nameController,
+-                  decoration: const InputDecoration(labelText: 'Nome Completo'),
++        child: SizedBox(
++          width: double.maxFinite,
++          child: Column(
++            mainAxisSize: MainAxisSize.min,
++            children: [
++              Form(
++                key: _formKey,
++                child: Column(
++                  children: [
++                    TextFormField(
++                      controller: _nameController,
++                      decoration: const InputDecoration(labelText: 'Nome e Cognome'),
++                      validator: (v) => v!.isEmpty ? 'Campo obbligatorio' : null,
++                    ),
++                    TextFormField(
++                      controller: _codFisController,
++                      decoration: const InputDecoration(labelText: 'Codice Fiscale'),
++                      textCapitalization: TextCapitalization.characters,
++                      validator: (v) => v!.isEmpty ? 'Campo obbligatorio' : null,
++                    ),
++                    TextFormField(
++                      controller: _phoneController,
++                      decoration: const InputDecoration(labelText: 'Telefono'),
++                      keyboardType: TextInputType.phone,
++                      validator: (v) => v!.isEmpty ? 'Campo obbligatorio' : null,
++                    ),
++                     TextFormField(
++                      controller: _emailController,
++                      decoration: const InputDecoration(labelText: 'Email (Opzionale)'),
++                      keyboardType: TextInputType.emailAddress,
++                    ),
++                  ],
+                 ),
+-                TextField(
+-                  controller: _fiscalCodeController,
+-                  decoration: const InputDecoration(labelText: 'Codice Fiscale'),
+-                ),
+-                TextField(
+-                  controller: _phoneNumberController,
+-                  decoration: const InputDecoration(labelText: 'Numero di Telefono'),
+-                  keyboardType: TextInputType.phone,
+-                ),
+-                TextField(
+-                  controller: _emailController,
+-                  decoration: const InputDecoration(labelText: 'Email (Opzionale)'),
+-                  keyboardType: TextInputType.emailAddress,
++              ),
++              const SizedBox(height: 20),
++              if (profiles.isNotEmpty) ...[
++                const Divider(),
++                const Text("Profili Esistenti", style: TextStyle(fontWeight: FontWeight.bold)),
++                const SizedBox(height: 10),
++                ListView.builder(
++                  shrinkWrap: true,
++                  physics: const NeverScrollableScrollPhysics(),
++                  itemCount: profiles.length,
++                  itemBuilder: (context, index) {
++                    final profile = profiles[index];
++                    final isDefault = appProvider.currentProfile?.id == profile.id;
++                    return ListTile(
++                      title: Text(profile.name),
++                      subtitle: Text(profile.codFis),
++                      trailing: Row(
++                        mainAxisSize: MainAxisSize.min,
++                        children: [
++                          IconButton(
++                            icon: const Icon(Icons.edit),
++                            onPressed: () => _editProfile(profile),
++                          ),
++                          IconButton(
++                            icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
++                            onPressed: () => _deleteProfile(profile.id),
++                          ),
++                        ],
++                      ),
++                      leading: isDefault ? Icon(Icons.check_circle, color: Colors.green) : const Icon(Icons.person),
++                      onTap: () {
++                         appProvider.switchProfile(profile.id);
++                      },
++                    );
++                  },
+                 ),
+               ],
+-            );
+-          },
++            ],
++          ),
+         ),
+       ),
+       actions: [
+-        TextButton(
+-          onPressed: () {
+-            // Clear current editing state
+-            setState(() {
+-              _editingProfile = null;
+-              _nameController.clear();
+-              _fiscalCodeController.clear();
+-              _phoneNumberController.clear();
+-              _emailController.clear();
+-            });
+-          },
+-          child: const Text('Nuovo Profilo'),
++        if (_editingProfile != null)
++         TextButton(
++          onPressed: _clearForm,
++          child: const Text('ANNULLA MODIFICA'),
+         ),
+         TextButton(
+-          onPressed: () {
+-            Navigator.of(context).pop();
+-          },
+-          child: const Text('Chiudi'),
++          onPressed: () => Navigator.of(context).pop(),
++          child: const Text('CHIUDI'),
+         ),
+         ElevatedButton(
+-          onPressed: () => _saveProfile(context),
+-          child: Text(_editingProfile == null ? 'Aggiungi Profilo' : 'Aggiorna Profilo'),
++          onPressed: _saveProfile,
++          child: const Text('SALVA'),
+         ),
+       ],
+     );

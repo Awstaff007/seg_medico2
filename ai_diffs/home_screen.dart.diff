@@ -1,0 +1,13 @@
+--- a/home_screen.dart+++ b/home_screen.dart@@ -1,5 +1,6 @@ import 'package:flutter/material.dart';
+ import 'package:provider/provider.dart';
++import 'package:seg_medico/models/models.dart';
+ import 'package:seg_medico/providers/app_provider.dart';
+ import 'package:seg_medico/widgets/login_dialog.dart';
+ import 'package:seg_medico/widgets/main_drawer.dart';
+@@ -227,7 +228,6 @@           child: const Text('Salva'),
+           onPressed: () {
+             appProvider.updateFontSize(_currentSliderValue!);
+-            // Le impostazioni complete vengono salvate solo dalla pagina Impostazioni
+             Navigator.of(context).pop();
+           },
+         ),

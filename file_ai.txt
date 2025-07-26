@@ -1,224 +1,1066 @@
-Mi dispiace per gli errori che stai riscontrando. Sembra che le modifiche precedenti non siano state sufficienti a risolvere tutti i problemi. Analizziamo i nuovi errori.
+Perfetto, ho analizzato la tua richiesta e la struttura dell'app. Procederò con una revisione completa e l'implementazione delle nuove funzionalità come da te descritto.
 
-Gli errori principali che vedo ora sono:
+Ecco le modifiche che applicherò per risolvere gli errori e migliorare l'applicazione, seguendo le tue specifiche.
 
-1.  **"No such file or directory"**: Questi errori indicano che il compilatore non riesce a trovare i file specificati nelle dichiarazioni `import`. Questo suggerisce che le directory `providers`, `services` e `screens` potrebbero non esistere all'interno della cartella `lib`, o i nomi dei file all'interno di esse potrebbero non corrispondere esattamente a quelli negli `import`.
-2.  **"Couldn't resolve the package 'segreteria\_medica'"**: Questo conferma che il prefisso del pacchetto utilizzato negli `import` è `segreteria_medica`, mentre il nome effettivo del tuo progetto (e quindi del pacchetto Flutter) è `seg_medico`. C'è un'incoerenza che deve essere risolta in tutti i file.
-3.  **Errori di sintassi in `main.dart`**: Ci sono ancora problemi con l'inizializzazione del `Provider<ApiService>` e la gestione del `notificationResponse.payload`.
-
-Per risolvere questi problemi, dobbiamo fare quanto segue:
-
-  * **Rinominare la cartella radice del progetto:** Se il tuo progetto si chiama `segreteria_medica` sul filesystem ma `pubspec.yaml` lo chiama `seg_medico`, è fondamentale che siano coerenti. Il modo più semplice è rinominare la cartella principale del progetto da `segreteria_medica` a `seg_medico`. Se non l'hai ancora fatto, esegui:
-    ```bash
-    mv segreteria_medica seg_medico
-    ```
-    nel terminale prima di procedere.
-  * **Assicurarsi che le cartelle esistano:** Verifica manualmente che all'interno della cartella `lib` esistano le sottocartelle `providers`, `services` e `screens`, e che contengano i file `.dart` con i nomi corretti.
-  * **Correggere tutti gli `import`**: Tutti gli `import` che iniziano con `package:segreteria_medica/` devono essere cambiati in `package:seg_medico/`.
-  * **Correggere gli errori di sintassi specifici in `main.dart`**.
-
-Ecco le modifiche al codice. Assicurati di eseguire prima il comando `mv` se la tua cartella progetto si chiama ancora `segreteria_medica`.
-
------
-
+```
 %%FILE: lib/main.dart
 %%BEGIN
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:seg\_medico/providers/app\_provider.dart';
-import 'package:seg\_medico/services/api\_service.dart';
-import 'package:seg\_medico/services/profile\_manager.dart';
-import 'package:seg\_medico/screens/home\_screen.dart';
-import 'package:seg\_medico/screens/farmaci\_screen.dart';
-import 'package:seg\_medico/screens/appuntamenti\_screen.dart';
-import 'package:seg\_medico/screens/cronologia\_screen.dart';
-import 'package:seg\_medico/screens/settings\_screen.dart';
-import 'package:flutter\_local\_notifications/flutter\_local\_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:flutter\_timezone/flutter\_timezone.dart';
-import 'dart:io' show Platform;
-
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-FlutterLocalNotificationsPlugin();
+import 'package:seg_medico/providers/app_provider.dart';
+import 'package:seg_medico/screens/home_screen.dart';
+import 'package:seg_medico/services/api_service.dart';
+import 'package:seg_medico/utils/profile_manager.dart';
+import 'package:seg_medico/themes/app_theme.dart';
 
 void main() async {
-WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
 
-// Initialize time zones for local notifications
-tz.initializeTimeZones();
-try {
-final String? timeZoneName = await FlutterTimezone.getLocalTimezone();
-if (timeZoneName \!= null) {
-tz.setLocalLocation(tz.getLocation(timeZoneName));
-}
-} catch (e) {
-debugPrint('Error getting local timezone: $e');
-}
+  // Inizializza i servizi che verranno iniettati nel provider
+  final profileManager = ProfileManager();
+  await profileManager.init(); // Carica i profili all'avvio
 
-// Configure local notifications only for platforms where it's typically supported or needed
-if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-await \_configureLocalNotifications();
-}
+  final apiService = ApiService();
 
-runApp(
-MultiProvider(
-providers: [
-ChangeNotifierProvider(create: (*) =\> AppProvider()),
-// Correzione: create richiede una funzione che restituisce un'istanza
-Provider\<ApiService\>(create: (*) =\> ApiService()),
-Provider\<ProfileManager\>(create: (*) =\> ProfileManager()),
-ChangeNotifierProvider(create: (*) =\> SettingsProvider()), // Aggiungi SettingsProvider
-],
-child: const MyApp(),
-),
-);
-}
-
-Future\<void\> \_configureLocalNotifications() async {
-const AndroidInitializationSettings initializationSettingsAndroid =
-AndroidInitializationSettings('@mipmap/ic\_launcher');
-
-const DarwinInitializationSettings initializationSettingsDarwin =
-DarwinInitializationSettings(
-requestAlertPermission: true,
-requestBadgePermission: true,
-requestSoundPermission: true,
-);
-
-const InitializationSettings initializationSettings = InitializationSettings(
-android: initializationSettingsAndroid,
-iOS: initializationSettingsDarwin,
-macOS: initializationSettingsDarwin,
-);
-
-await flutterLocalNotificationsPlugin.initialize(
-initializationSettings,
-onDidReceiveNotificationResponse:
-(NotificationResponse notificationResponse) async {
-// Handle notification taps if needed
-// La proprietà payload è di tipo String? e non può essere usata direttamente come bool
-if (notificationResponse.payload \!= null && notificationResponse.payload\!.isNotEmpty) {
-debugPrint('notification payload: ${notificationResponse.payload}');
-}
-},
-onDidReceiveBackgroundNotificationResponse:
-(NotificationResponse notificationResponse) async {
-// Handle background notification taps if needed
-if (notificationResponse.payload \!= null && notificationResponse.payload\!.isNotEmpty) {
-debugPrint('background notification payload: ${notificationResponse.payload}');
-}
-},
-);
+  runApp(MyApp(
+    profileManager: profileManager,
+    apiService: apiService,
+  ));
 }
 
 class MyApp extends StatelessWidget {
-const MyApp({super.key});
+  final ProfileManager profileManager;
+  final ApiService apiService;
 
-@override
-Widget build(BuildContext context) {
-return MaterialApp(
-title: 'Segreteria Medica',
-theme: ThemeData(
-primarySwatch: Colors.blue,
-),
-// Assicurati che HomeScreen sia un widget valido e che il costruttore sia corretto
-home: const HomeScreen(),
-routes: {
-// Correggi gli errori di sintassi e assicurati che i costruttori siano validi
-'/farmaci': (context) =\> const FarmaciScreen(),
-'/appuntamenti': (context) =\> const AppuntamentiScreen(),
-'/cronologia': (context) =\> const CronologiaScreen(),
-'/impostazioni': (context) =\> const SettingsScreen(),
-},
-);
+  const MyApp({
+    Key? key,
+    required this.profileManager,
+    required this.apiService,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => AppProvider(apiService, profileManager),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(),
+        ),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Segretario Medico',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.themeMode,
+            home: const HomeScreen(),
+            debugShowCheckedModeBanner: false,
+          );
+        },
+      ),
+    );
+  }
+}
+%%END
+```
+
+%%FILE: lib/providers/app\_provider.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:seg\_medico/models/models.dart';
+import 'package:seg\_medico/services/api\_service.dart';
+import 'package:seg\_medico/utils/profile\_manager.dart';
+import 'dart:async';
+
+class AppProvider with ChangeNotifier {
+final ApiService \_apiService;
+final ProfileManager \_profileManager;
+
+// State
+Profile? \_currentProfile;
+bool \_isLoggedIn = false;
+String? \_authToken;
+Appointment? \_nextAppointment;
+List\<AppointmentSlot\> \_availableSlots = [];
+List\<Drug\> \_userDrugs = [];
+List\<HistoryEntry\> \_history = [];
+Settings \_settings = Settings();
+bool \_isLoading = false;
+String? \_errorMessage;
+double \_fontSizeMultiplier = 1.0;
+
+// Getters
+Profile? get currentProfile =\> \_currentProfile;
+bool get isLoggedIn =\> \_isLoggedIn;
+Appointment? get nextAppointment =\> \_nextAppointment;
+List\<AppointmentSlot\> get availableSlots =\> \_availableSlots;
+List\<Drug\> get userDrugs =\> \_userDrugs;
+List\<HistoryEntry\> get history =\> \_history;
+Settings get settings =\> \_settings;
+bool get isLoading =\> \_isLoading;
+String? get errorMessage =\> \_errorMessage;
+double get fontSizeMultiplier =\> \_fontSizeMultiplier;
+
+AppProvider(this.\_apiService, this.\_profileManager) {
+\_loadInitialData();
+}
+
+Future\<void\> \_loadInitialData() async {
+\_settings = await \_profileManager.loadSettings();
+\_fontSizeMultiplier = \_settings.fontSize / 100.0;
+await \_loadProfileData();
+notifyListeners();
+}
+
+Future\<void\> \_loadProfileData() async {
+\_currentProfile = await \_profileManager.getDefaultProfile();
+if (\_currentProfile \!= null) {
+\_authToken = await \_profileManager.getToken(\_currentProfile\!.id);
+if (\_authToken \!= null && \_authToken\!.isNotEmpty) {
+\_isLoggedIn = true;
+\_apiService.setAuthToken(\_authToken\!);
+await fetchAllDataForProfile();
+} else {
+\_isLoggedIn = false;
+}
+}
+notifyListeners();
+}
+
+Future\<void\> fetchAllDataForProfile() async {
+if (\!\_isLoggedIn || \_currentProfile == null) return;
+\_isLoading = true;
+notifyListeners();
+try {
+await Future.wait([
+fetchNextAppointment(),
+fetchUserDrugs(),
+fetchHistory(),
+]);
+\_errorMessage = null;
+} catch (e) {
+\_errorMessage = "Errore nel caricamento dei dati: ${e.toString()}";
+} finally {
+\_isLoading = false;
+notifyListeners();
+}
+}
+
+Future\<void\> requestLoginSms() async {
+if (\_currentProfile == null) return;
+\_isLoading = true;
+notifyListeners();
+try {
+await \_apiService.requestSmsCode(\_currentProfile\!.phone);
+\_errorMessage = null;
+} catch (e) {
+\_errorMessage = e.toString();
+} finally {
+\_isLoading = false;
+notifyListeners();
+}
+}
+
+Future\<bool\> login(String code) async {
+if (\_currentProfile == null) return false;
+\_isLoading = true;
+notifyListeners();
+try {
+final token = await \_apiService.verifySmsCode(\_currentProfile\!.phone, code);
+await \_profileManager.saveToken(\_currentProfile\!.id, token);
+\_authToken = token;
+\_isLoggedIn = true;
+\_apiService.setAuthToken(token);
+await fetchAllDataForProfile();
+\_errorMessage = null;
+return true;
+} catch (e) {
+\_errorMessage = e.toString();
+\_isLoggedIn = false;
+return false;
+} finally {
+\_isLoading = false;
+notifyListeners();
+}
+}
+
+Future\<void\> logout() async {
+if (\_currentProfile \!= null) {
+await \_profileManager.deleteToken(\_currentProfile\!.id);
+}
+\_isLoggedIn = false;
+\_authToken = null;
+\_nextAppointment = null;
+\_userDrugs = [];
+\_history = [];
+\_apiService.clearAuthToken();
+notifyListeners();
+}
+
+Future\<void\> switchProfile(String profileId) async {
+final profile = await \_profileManager.getProfile(profileId);
+if (profile \!= null) {
+\_currentProfile = profile;
+await \_profileManager.setDefaultProfile(profileId);
+await \_loadProfileData();
+}
+}
+
+List\<Profile\> getProfiles() {
+return \_profileManager.getProfiles();
+}
+
+Future\<void\> addProfile(Profile profile) async {
+await \_profileManager.saveProfile(profile);
+await \_loadProfileData();
+}
+
+Future\<void\> deleteProfile(String profileId) async {
+await \_profileManager.deleteProfile(profileId);
+await \_loadProfileData();
+}
+
+// Appointments
+Future\<void\> fetchNextAppointment() async {
+if (\!\_isLoggedIn || \_currentProfile == null) return;
+try {
+// Simulating API call
+final appointments = await \_apiService.getAppointments();
+\_nextAppointment = appointments.where((a) =\> a.date.isAfter(DateTime.now())).firstOrNull;
+} catch (e) {
+\_errorMessage = "Impossibile caricare il prossimo appuntamento.";
+}
+notifyListeners();
+}
+
+Future\<void\> fetchAvailableSlots() async {
+if (\!\_isLoggedIn || \_currentProfile == null) return;
+\_isLoading = true;
+notifyListeners();
+try {
+// TODO: Sostituire con i parametri corretti dall'UI o profilo
+\_availableSlots = await \_apiService.getAppointmentSlots("AMB01", "12345");
+} catch (e) {
+\_errorMessage = "Impossibile caricare le disponibilità.";
+\_availableSlots = [];
+} finally {
+\_isLoading = false;
+notifyListeners();
+}
+}
+
+Future\<bool\> bookAppointment(AppointmentSlot slot, String notes) async {
+if (\!\_isLoggedIn) return false;
+\_isLoading = true;
+notifyListeners();
+try {
+await \_apiService.bookAppointment(slot.id, notes);
+await fetchNextAppointment(); // Refresh appointments
+return true;
+} catch (e) {
+\_errorMessage = "Errore durante la prenotazione: ${e.toString()}";
+return false;
+} finally {
+\_isLoading = false;
+notifyListeners();
+}
+}
+
+Future\<void\> cancelAppointment(String appointmentId) async {
+if (\!\_isLoggedIn) return;
+\_isLoading = true;
+notifyListeners();
+try {
+await \_apiService.cancelAppointment(appointmentId);
+if (\_nextAppointment?.id == appointmentId) {
+\_nextAppointment = null;
+}
+await fetchHistory(); // Refresh history
+} catch (e) {
+\_errorMessage = "Errore durante la cancellazione: ${e.toString()}";
+} finally {
+\_isLoading = false;
+notifyListeners();
+}
+}
+
+// Drugs
+Future\<void\> fetchUserDrugs() async {
+if (\!\_isLoggedIn || \_currentProfile == null) return;
+// Simulating API or local storage fetch
+\_userDrugs = [
+Drug(id: '1', name: 'Paracetamolo 1000mg'),
+Drug(id: '2', name: 'Cardioaspirina'),
+Drug(id: '3', name: 'Integratore Vitamina D'),
+Drug(id: '4', name: 'Lasix 25mg'),
+];
+notifyListeners();
+}
+
+Future\<bool\> orderDrugs(List\<String\> drugIds, String notes) async {
+if (\!\_isLoggedIn) return false;
+\_isLoading = true;
+notifyListeners();
+try {
+await \_apiService.orderDrugs(drugIds, notes, \_currentProfile\!.id);
+await fetchHistory();
+return true;
+} catch (e) {
+\_errorMessage = "Errore durante l'ordine: ${e.toString()}";
+return false;
+} finally {
+\_isLoading = false;
+notifyListeners();
+}
+}
+
+// History
+Future\<void\> fetchHistory() async {
+if (\!\_isLoggedIn) return;
+// Simulating
+\_history = [
+HistoryEntry(date: DateTime(2025, 7, 15), type: 'Farmaco', description: 'Paracetamolo – febbre persistente'),
+HistoryEntry(date: DateTime(2025, 7, 8), type: 'Farmaco', description: 'Aspirina – dosaggio aumentato'),
+HistoryEntry(date: DateTime(2025, 6, 22), type: 'Appuntamento', description: 'Visita dermatologica – controllo nevi'),
+];
+\_history.sort((a, b) =\> b.date.compareTo(a.date));
+notifyListeners();
+}
+
+// Settings
+Future\<void\> updateSettings(Settings newSettings) async {
+\_settings = newSettings;
+\_fontSizeMultiplier = \_settings.fontSize / 100.0;
+await \_profileManager.saveSettings(\_settings);
+notifyListeners();
+}
+
+void updateFontSize(double percentage) {
+if (percentage \>= 50 && percentage \<= 200) {
+\_settings.fontSize = percentage;
+\_fontSizeMultiplier = percentage / 100.0;
+notifyListeners();
+}
+}
+}
+
+class ThemeProvider with ChangeNotifier {
+ThemeMode \_themeMode = ThemeMode.system;
+
+ThemeMode get themeMode =\> \_themeMode;
+
+void setThemeMode(ThemeMode mode) {
+\_themeMode = mode;
+// Qui potresti anche salvare la preferenza sul dispositivo
+notifyListeners();
 }
 }
 %%END
 
------
+```
+%%FILE: lib/models/models.dart
+%%BEGIN
+import 'package:flutter/foundation.dart';
 
-%%FILE: lib/screens/settings\_screen.dart
+class Profile {
+  final String id;
+  final String name;
+  final String phone;
+
+  Profile({required this.id, required this.name, required this.phone});
+
+  // Metodi per la serializzazione/deserializzazione JSON
+  factory Profile.fromJson(Map<String, dynamic> json) {
+    return Profile(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      phone: json['phone'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'phone': phone,
+    };
+  }
+}
+
+class Appointment {
+  final String id;
+  final DateTime date;
+  final String notes;
+
+  Appointment({required this.id, required this.date, required this.notes});
+}
+
+class AppointmentSlot {
+  final String id;
+  final DateTime startTime;
+  final DateTime endTime;
+
+  AppointmentSlot({required this.id, required this.startTime, required this.endTime});
+
+  factory AppointmentSlot.fromJson(Map<String, dynamic> json) {
+    return AppointmentSlot(
+      id: json['id'] as String,
+      startTime: DateTime.parse(json['start_time'] as String),
+      endTime: DateTime.parse(json['end_time'] as String),
+    );
+  }
+}
+
+class Drug {
+  final String id;
+  final String name;
+  bool isSelected;
+
+  Drug({required this.id, required this.name, this.isSelected = false});
+}
+
+class HistoryEntry {
+  final DateTime date;
+  final String type;
+  final String description;
+
+  HistoryEntry({required this.date, required this.type, required this.description});
+}
+
+class Settings {
+  double fontSize;
+  bool drugReminderEnabled;
+  int drugReminderDays;
+  bool appointmentDayReminderEnabled;
+  bool appointmentTimeReminderEnabled;
+  int appointmentReminderMinutes;
+  String theme; // 'light', 'dark', 'system'
+
+  Settings({
+    this.fontSize = 100.0, // as percentage
+    this.drugReminderEnabled = true,
+    this.drugReminderDays = 30,
+    this.appointmentDayReminderEnabled = true,
+    this.appointmentTimeReminderEnabled = true,
+    this.appointmentReminderMinutes = 60,
+    this.theme = 'system',
+  });
+
+  factory Settings.fromJson(Map<String, dynamic> json) {
+    return Settings(
+      fontSize: (json['fontSize'] ?? 100.0).toDouble(),
+      drugReminderEnabled: json['drugReminderEnabled'] ?? true,
+      drugReminderDays: json['drugReminderDays'] ?? 30,
+      appointmentDayReminderEnabled: json['appointmentDayReminderEnabled'] ?? true,
+      appointmentTimeReminderEnabled: json['appointmentTimeReminderEnabled'] ?? true,
+      appointmentReminderMinutes: json['appointmentReminderMinutes'] ?? 60,
+      theme: json['theme'] ?? 'system',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'fontSize': fontSize,
+      'drugReminderEnabled': drugReminderEnabled,
+      'drugReminderDays': drugReminderDays,
+      'appointmentDayReminderEnabled': appointmentDayReminderEnabled,
+      'appointmentTimeReminderEnabled': appointmentTimeReminderEnabled,
+      'appointmentReminderMinutes': appointmentReminderMinutes,
+      'theme': theme,
+    };
+  }
+}
+%%END
+```
+
+%%FILE: lib/screens/home\_screen.dart
 %%BEGIN
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:seg\_medico/providers/settings\_provider.dart'; // Import corretto
+import 'package:seg\_medico/providers/app\_provider.dart';
+import 'package:seg\_medico/widgets/login\_dialog.dart';
+import 'package:seg\_medico/widgets/main\_drawer.dart';
+import 'package:seg\_medico/widgets/profile\_dropdown.dart';
+import 'package:intl/intl.dart';
+import 'package:seg\_medico/screens/drugs\_screen.dart';
+import 'package:seg\_medico/screens/appointments\_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
-const SettingsScreen({super.key});
+class HomeScreen extends StatelessWidget {
+const HomeScreen({Key? key}) : super(key: key);
 
-@override
-State\<SettingsScreen\> createState() =\> \_SettingsScreenState();
-}
-
-class \_SettingsScreenState extends State\<SettingsScreen\> {
-final TextEditingController \_courtesyPhraseController = TextEditingController();
-final TextEditingController \_doctorNameController = TextEditingController();
-
-@override
-void initState() {
-super.initState();
-// Inizializza i controller con i valori attuali al caricamento dello schermo
-// Assicurati che SettingsProvider sia fornito nel widget tree sopra questo punto.
-WidgetsBinding.instance.addPostFrameCallback((\_) {
-\_courtesyPhraseController.text = Provider.of\<SettingsProvider\>(context, listen: false).courtesyPhrase;
-\_doctorNameController.text = Provider.of\<SettingsProvider\>(context, listen: false).doctorName;
-});
-}
-
-@override
-void dispose() {
-\_courtesyPhraseController.dispose();
-\_doctorNameController.dispose();
-super.dispose();
+void \_showLoginDialog(BuildContext context) {
+showDialog(
+context: context,
+barrierDismissible: false,
+builder: (BuildContext context) {
+return const LoginDialog();
+},
+);
 }
 
 @override
 Widget build(BuildContext context) {
-// Ora SettingsProvider dovrebbe essere disponibile grazie alla sua aggiunta in main.dart
-final settingsProvider = Provider.of\<SettingsProvider\>(context);
+final appProvider = Provider.of\<AppProvider\>(context);
+final theme = Theme.of(context);
+final textScaler = appProvider.fontSizeMultiplier;
 
 ```
 return Scaffold(
   appBar: AppBar(
-    title: const Text('Impostazioni'),
+    title: const ProfileDropdown(),
+    actions: [
+      IconButton(
+        icon: const Icon(Icons.text_fields),
+        tooltip: 'Dimensione Testo',
+        onPressed: () {
+          // Mostra un dialogo per cambiare la dimensione del testo
+          showDialog(
+              context: context,
+              builder: (context) => FontSizeDialog()
+          );
+        },
+      ),
+    ],
   ),
+  drawer: const MainDrawer(),
   body: Padding(
     padding: const EdgeInsets.all(16.0),
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
-          controller: _courtesyPhraseController,
-          decoration: const InputDecoration(
-            labelText: 'Frase di cortesia (es. Benvenuto/a)',
-            border: OutlineInputBorder(),
+        if (appProvider.isLoggedIn && appProvider.nextAppointment != null)
+          _NextAppointmentCard(
+            date: appProvider.nextAppointment!.date,
+            notes: appProvider.nextAppointment!.notes,
+            onCancel: () {
+              // Logica per annullare la visita
+               appProvider.cancelAppointment(appProvider.nextAppointment!.id);
+               ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Visita annullata.')),
+              );
+            },
           ),
-          onChanged: (value) {
-            settingsProvider.setCourtesyPhrase(value);
-          },
-        ),
-        const SizedBox(height: 16.0),
-        TextField(
-          controller: _doctorNameController,
-          decoration: const InputDecoration(
-            labelText: 'Nome del Dottore',
-            border: OutlineInputBorder(),
+        const SizedBox(height: 24),
+        _DrugReminderCard(),
+        const Spacer(),
+        if (!appProvider.isLoggedIn && appProvider.currentProfile != null)
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            onPressed: () => _showLoginDialog(context),
+            child: Text(
+              'ACCEDI a ${appProvider.currentProfile!.name.toUpperCase()}',
+              textScaler: TextScaler.linear(textScaler),
+              style: const TextStyle(fontSize: 18),
+            ),
           ),
-          onChanged: (value) {
-            settingsProvider.setDoctorName(value);
-          },
-        ),
-        const SizedBox(height: 24.0),
-        ElevatedButton(
-          onPressed: () {
-            // Potresti aggiungere un feedback visivo qui, es. un SnackBar
+        if (appProvider.isLoggedIn)
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                     Navigator.push(context, MaterialPageRoute(builder: (context) => const DrugsScreen()));
+                  },
+                  child: Text('Farmaci', textScaler: TextScaler.linear(textScaler)),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const AppointmentsScreen()));
+                  },
+                  child: Text('Appuntamenti', textScaler: TextScaler.linear(textScaler)),
+                ),
+              ),
+            ],
+          ),
+        const Spacer(),
+      ],
+    ),
+  ),
+);
+```
+
+}
+}
+
+class \_NextAppointmentCard extends StatelessWidget {
+final DateTime date;
+final String notes;
+final VoidCallback onCancel;
+
+const \_NextAppointmentCard({
+required this.date,
+required this.notes,
+required this.onCancel,
+});
+
+@override
+Widget build(BuildContext context) {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return Card(
+child: Padding(
+padding: const EdgeInsets.all(16.0),
+child: Column(
+crossAxisAlignment: CrossAxisAlignment.start,
+children: [
+Text(
+'Prossima visita: ${DateFormat('d MMM yyyy, HH:mm', 'it\_IT').format(date)}',
+style: Theme.of(context).textTheme.titleMedium,
+textScaler: TextScaler.linear(textScaler),
+),
+if (notes.isNotEmpty) ...[
+const SizedBox(height: 8),
+Text(
+'↪ Note: "$notes"',
+textScaler: TextScaler.linear(textScaler),
+),
+],
+const SizedBox(height: 8),
+Align(
+alignment: Alignment.centerRight,
+child: TextButton(
+onPressed: onCancel,
+child: Text('Annulla visita', textScaler: TextScaler.linear(textScaler)),
+),
+),
+],
+),
+),
+);
+}
+}
+
+class \_DrugReminderCard extends StatelessWidget {
+@override
+Widget build(BuildContext context) {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return Card(
+elevation: 0,
+color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.5),
+child: Padding(
+padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+child: Row(
+mainAxisAlignment: MainAxisAlignment.center,
+children: [
+Text('Ripetizione farmaci tra ', textScaler: TextScaler.linear(textScaler)),
+Container(
+padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+decoration: BoxDecoration(
+color: Theme.of(context).colorScheme.surface,
+borderRadius: BorderRadius.circular(8),
+),
+child: Text(
+'12',
+style: Theme.of(context).textTheme.titleMedium,
+textScaler: TextScaler.linear(textScaler),
+),
+),
+Text(' giorni', textScaler: TextScaler.linear(textScaler)),
+],
+),
+),
+);
+}
+}
+
+class FontSizeDialog extends StatefulWidget {
+@override
+\_FontSizeDialogState createState() =\> \_FontSizeDialogState();
+}
+
+class \_FontSizeDialogState extends State\<FontSizeDialog\> {
+double? \_currentSliderValue;
+
+@override
+Widget build(BuildContext context) {
+final appProvider = Provider.of\<AppProvider\>(context, listen: false);
+\_currentSliderValue ??= appProvider.settings.fontSize;
+
+```
+return AlertDialog(
+  title: const Text('Dimensione Testo'),
+  content: Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        'Trascina per regolare la grandezza del testo.',
+        textAlign: TextAlign.center,
+        textScaler: TextScaler.linear((_currentSliderValue! / 100.0)),
+      ),
+      Slider(
+        value: _currentSliderValue!,
+        min: 50,
+        max: 200,
+        divisions: 15,
+        label: _currentSliderValue!.round().toString() + '%',
+        onChanged: (double value) {
+          setState(() {
+            _currentSliderValue = value;
+          });
+        },
+      ),
+    ],
+  ),
+  actions: <Widget>[
+    TextButton(
+      child: const Text('Annulla'),
+      onPressed: () {
+        Navigator.of(context).pop();
+      },
+    ),
+    TextButton(
+      child: const Text('Applica'),
+      onPressed: () {
+        appProvider.updateFontSize(_currentSliderValue!);
+        Navigator.of(context).pop();
+      },
+    ),
+  ],
+);
+```
+
+}
+}
+%%END
+
+```
+%%FILE: lib/screens/appointments_screen.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:seg_medico/models/models.dart';
+import 'package:seg_medico/providers/app_provider.dart';
+import 'package:seg_medico/widgets/main_drawer.dart';
+
+class AppointmentsScreen extends StatefulWidget {
+  const AppointmentsScreen({Key? key}) : super(key: key);
+
+  @override
+  _AppointmentsScreenState createState() => _AppointmentsScreenState();
+}
+
+class _AppointmentsScreenState extends State<AppointmentsScreen> {
+  AppointmentSlot? _selectedSlot;
+  final _notesController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Carica le disponibilità quando la schermata viene visualizzata
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppProvider>(context, listen: false).fetchAvailableSlots();
+    });
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  void _bookAppointment() async {
+    if (_selectedSlot == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Per favore, seleziona una data e un orario.')),
+      );
+      return;
+    }
+
+    final success = await Provider.of<AppProvider>(context, listen: false)
+        .bookAppointment(_selectedSlot!, _notesController.text);
+
+    if (mounted) {
+        if (success) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Impostazioni salvate!')),
+                const SnackBar(content: Text('Appuntamento prenotato con successo!')),
             );
-          },
-          child: const Text('Salva Impostazioni'),
+            Navigator.of(context).pop();
+        } else {
+            final error = Provider.of<AppProvider>(context, listen: false).errorMessage;
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(error ?? 'Errore durante la prenotazione.')),
+            );
+        }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textScaler = Provider.of<AppProvider>(context).fontSizeMultiplier;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Appuntamenti', textScaler: TextScaler.linear(textScaler)),
+      ),
+      drawer: const MainDrawer(),
+      body: Consumer<AppProvider>(
+        builder: (context, appProvider, child) {
+          if (appProvider.isLoading && appProvider.availableSlots.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (appProvider.errorMessage != null && appProvider.availableSlots.isEmpty) {
+            return Center(
+              child: Text(
+                appProvider.errorMessage!,
+                textScaler: TextScaler.linear(textScaler),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Disponibilità:',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textScaler: TextScaler.linear(textScaler),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: _buildSlotsList(appProvider.availableSlots, textScaler),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _notesController,
+                  decoration: const InputDecoration(
+                    labelText: '✏️ Note visita (opzionale)',
+                    border: OutlineInputBorder(),
+                  ),
+                  textCapitalization: TextCapitalization.sentences,
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('ANNULLA', textScaler: TextScaler.linear(textScaler)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _bookAppointment,
+                        child: Text('PRENOTA', textScaler: TextScaler.linear(textScaler)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSlotsList(List<AppointmentSlot> slots, double textScaler) {
+    if (slots.isEmpty) {
+      return Center(
+        child: Text(
+          'Nessuna disponibilità trovata.',
+          style: Theme.of(context).textTheme.bodyLarge,
+          textScaler: TextScaler.linear(textScaler),
         ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: slots.length,
+      itemBuilder: (context, index) {
+        final slot = slots[index];
+        final isSelected = _selectedSlot?.id == slot.id;
+        return Card(
+          color: isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
+          child: ListTile(
+            title: Text(
+              DateFormat('EEEE d MMMM yyyy', 'it_IT').format(slot.startTime),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              textScaler: TextScaler.linear(textScaler),
+            ),
+            subtitle: Text(
+              'Ore: ${DateFormat('HH:mm').format(slot.startTime)}',
+              textScaler: TextScaler.linear(textScaler),
+            ),
+            onTap: () {
+              setState(() {
+                _selectedSlot = slot;
+              });
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+%%END
+```
+
+%%FILE: lib/screens/drugs\_screen.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg\_medico/models/models.dart';
+import 'package:seg\_medico/providers/app\_provider.dart';
+import 'package:seg\_medico/widgets/main\_drawer.dart';
+
+class DrugsScreen extends StatefulWidget {
+const DrugsScreen({Key? key}) : super(key: key);
+
+@override
+\_DrugsScreenState createState() =\> \_DrugsScreenState();
+}
+
+class \_DrugsScreenState extends State\<DrugsScreen\> {
+final \_notesController = TextEditingController();
+bool \_isEditMode = false;
+late List\<Drug\> \_drugs;
+
+@override
+void initState() {
+super.initState();
+final appProvider = Provider.of\<AppProvider\>(context, listen: false);
+// Crea una copia locale per gestire lo stato della selezione
+\_drugs = appProvider.userDrugs.map((d) =\> Drug(id: d.id, name: d.name, isSelected: false)).toList();
+}
+
+@override
+void dispose(){
+\_notesController.dispose();
+super.dispose();
+}
+
+void \_orderDrugs() async {
+final selectedDrugs = \_drugs.where((d) =\> d.isSelected).map((d) =\> d.id).toList();
+if (selectedDrugs.isEmpty) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Seleziona almeno un farmaco.')),
+);
+return;
+}
+
+```
+final success = await Provider.of<AppProvider>(context, listen: false)
+    .orderDrugs(selectedDrugs, _notesController.text);
+
+if (mounted) {
+    if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ordine inviato con successo!')),
+        );
+        Navigator.of(context).pop();
+    } else {
+        final error = Provider.of<AppProvider>(context, listen: false).errorMessage;
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error ?? 'Errore durante l\'invio dell\'ordine.')),
+        );
+    }
+}
+```
+
+}
+
+@override
+Widget build(BuildContext context) {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+
+```
+return Scaffold(
+  appBar: AppBar(
+    title: Text('Farmaci', textScaler: TextScaler.linear(textScaler)),
+    actions: [
+      TextButton(
+        onPressed: () {
+          setState(() {
+            _isEditMode = !_isEditMode;
+            // Deseleziona tutto quando si esce dalla modalità modifica
+            if (!_isEditMode) {
+              for (var drug in _drugs) {
+                drug.isSelected = false;
+              }
+            }
+          });
+        },
+        child: Text(_isEditMode ? 'FINE' : 'MODIFICA'),
+      ),
+    ],
+  ),
+  drawer: const MainDrawer(),
+  body: Padding(
+    padding: const EdgeInsets.all(16.0),
+    child: Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: _drugs.length,
+            itemBuilder: (context, index) {
+              final drug = _drugs[index];
+              return CheckboxListTile(
+                title: Text(drug.name, textScaler: TextScaler.linear(textScaler)),
+                value: drug.isSelected,
+                onChanged: _isEditMode
+                    ? (bool? value) {
+                        setState(() {
+                          drug.isSelected = value ?? false;
+                        });
+                      }
+                    : null, // Disabilita se non in modalità modifica
+                controlAffinity: ListTileControlAffinity.leading,
+              );
+            },
+          ),
+        ),
+        ExpansionTile(
+          title: Text(
+            'Note personali (opzionale)',
+            style: Theme.of(context).textTheme.titleMedium,
+            textScaler: TextScaler.linear(textScaler),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: TextField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  hintText: 'Aggiungi note per il medico...',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('ANNULLA', textScaler: TextScaler.linear(textScaler)),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isEditMode ? _orderDrugs : null, // Abilita solo in modalità modifica
+                child: Text('ORDINA', textScaler: TextScaler.linear(textScaler)),
+              ),
+            ),
+          ],
+        )
       ],
     ),
   ),
@@ -230,25 +1072,1191 @@ return Scaffold(
 %%END
 
 ```
+%%FILE: lib/screens/history_screen.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:seg_medico/providers/app_provider.dart';
+import 'package:seg_medico/widgets/main_drawer.dart';
 
----
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({Key? key}) : super(key: key);
 
-**Passi da fare dopo queste modifiche:**
+  @override
+  _HistoryScreenState createState() => _HistoryScreenState();
+}
 
-1.  **Rinomina la tua cartella di progetto** (se non l'hai già fatto) da `segreteria_medica` a `seg_medico`. Questo è cruciale per risolvere gli errori di "Couldn't resolve the package".
-2.  **Verifica la struttura delle cartelle:** Assicurati che la tua cartella `lib` contenga le sottocartelle `providers`, `services` e `screens`, e che i file al loro interno siano nominati correttamente.
-    * `lib/providers/app_provider.dart`
-    * `lib/providers/settings_provider.dart` (già creato in una risposta precedente)
-    * `lib/services/api_service.dart`
-    * `lib/services/profile_manager.dart`
-    * `lib/screens/home_screen.dart`
-    * `lib/screens/farmaci_screen.dart`
-    * `lib/screens/appuntamenti_screen.dart`
-    * `lib/screens/cronologia_screen.dart`
-    * `lib/screens/settings_screen.dart`
-3.  **Esegui `flutter clean`**: Questo comando rimuoverà i vecchi artefatti di build e i file temporanei che potrebbero causare problemi.
-4.  **Esegui `flutter pub get`**: Per scaricare le dipendenze aggiornate e ricollegare il progetto.
-5.  **Esegui `flutter run`**: Prova a lanciare l'applicazione di nuovo.
+class _HistoryScreenState extends State<HistoryScreen> {
+  final _searchController = TextEditingController();
+  DateTime? _selectedDate;
 
-Se riscontri ancora errori relativi a file non trovati dopo aver eseguito `flutter clean` e `flutter pub get`, è quasi certamente un problema di naming o di posizione dei file sul tuo filesystem. In quel caso, dovrai verificare manualmente la struttura delle tue cartelle.
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appProvider = Provider.of<AppProvider>(context);
+    final textScaler = appProvider.fontSizeMultiplier;
+
+    final filteredHistory = appProvider.history.where((entry) {
+      final searchLower = _searchController.text.toLowerCase();
+      final matchesSearch = entry.description.toLowerCase().contains(searchLower) ||
+          entry.type.toLowerCase().contains(searchLower);
+      final matchesDate = _selectedDate == null ||
+          (entry.date.year == _selectedDate!.year &&
+              entry.date.month == _selectedDate!.month &&
+              entry.date.day == _selectedDate!.day);
+      return matchesSearch && matchesDate;
+    }).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Cronologia', textScaler: TextScaler.linear(textScaler)),
+      ),
+      drawer: const MainDrawer(),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Cerca...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      setState(() {});
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.calendar_today),
+                  onPressed: () => _selectDate(context),
+                ),
+                if (_selectedDate != null)
+                  ActionChip(
+                    avatar: const Icon(Icons.clear),
+                    label: Text(DateFormat('d/M/y').format(_selectedDate!)),
+                    onPressed: () {
+                      setState(() {
+                        _selectedDate = null;
+                      });
+                    },
+                  )
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 20,
+                columns: [
+                  DataColumn(label: Text('Data', textScaler: TextScaler.linear(textScaler))),
+                  DataColumn(label: Text('Tipo', textScaler: TextScaler.linear(textScaler))),
+                  DataColumn(label: Text('Descrizione', textScaler: TextScaler.linear(textScaler))),
+                ],
+                rows: filteredHistory.map((entry) {
+                  return DataRow(cells: [
+                    DataCell(Text(DateFormat('dd/MM/yyyy').format(entry.date), textScaler: TextScaler.linear(textScaler))),
+                    DataCell(Text(entry.type, textScaler: TextScaler.linear(textScaler))),
+                    DataCell(
+                      SizedBox(
+                        width: 200, // Imposta una larghezza per la descrizione
+                        child: Text(entry.description, overflow: TextOverflow.ellipsis, textScaler: TextScaler.linear(textScaler)),
+                      ),
+                    ),
+                  ]);
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+%%END
 ```
+
+%%FILE: lib/screens/settings\_screen.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg\_medico/models/models.dart';
+import 'package:seg\_medico/providers/app\_provider.dart';
+import 'package:seg\_medico/widgets/main\_drawer.dart';
+
+class SettingsScreen extends StatefulWidget {
+const SettingsScreen({Key? key}) : super(key: key);
+
+@override
+\_SettingsScreenState createState() =\> \_SettingsScreenState();
+}
+
+class \_SettingsScreenState extends State\<SettingsScreen\> {
+late Settings \_currentSettings;
+
+@override
+void didChangeDependencies() {
+super.didChangeDependencies();
+// Inizializza con una copia delle impostazioni correnti per permettere "Annulla"
+\_currentSettings = Settings.fromJson(
+Provider.of\<AppProvider\>(context, listen: false).settings.toJson());
+}
+
+void \_saveSettings() {
+Provider.of\<AppProvider\>(context, listen: false).updateSettings(\_currentSettings);
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Impostazioni salvate.')),
+);
+Navigator.of(context).pop();
+}
+
+@override
+Widget build(BuildContext context) {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+final themeProvider = Provider.of\<ThemeProvider\>(context);
+
+```
+return Scaffold(
+  appBar: AppBar(
+    title: Text('Impostazioni', textScaler: TextScaler.linear(textScaler)),
+  ),
+  drawer: const MainDrawer(),
+  body: ListView(
+    padding: const EdgeInsets.all(16.0),
+    children: [
+      _buildSectionTitle('Generali', context),
+      _buildFontSizeSetting(),
+      _buildThemeSetting(themeProvider),
+      const Divider(height: 32),
+      _buildSectionTitle('Notifiche Farmaci', context),
+      _buildDrugReminderSetting(),
+      const Divider(height: 32),
+      _buildSectionTitle('Notifiche Appuntamenti', context),
+      _buildAppointmentDayReminderSetting(),
+      _buildAppointmentTimeReminderSetting(),
+      const Divider(height: 32),
+      _buildSectionTitle('Permessi', context),
+      ListTile(
+        title: Text('Notifiche Push', textScaler: TextScaler.linear(textScaler)),
+        trailing: const Icon(Icons.arrow_forward_ios),
+        onTap: () {
+          // Apri impostazioni app
+        },
+      ),
+      const SizedBox(height: 32),
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('ANNULLA', textScaler: TextScaler.linear(textScaler)),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _saveSettings,
+              child: Text('SALVA', textScaler: TextScaler.linear(textScaler)),
+            ),
+          ),
+        ],
+      ),
+       const SizedBox(height: 16),
+       Center(
+         child: TextButton(
+            onPressed: (){
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Questa è una notifica di prova!')),
+                );
+            },
+            child: Text('PROVA NOTIFICA', textScaler: TextScaler.linear(textScaler)),
+         ),
+       )
+    ],
+  ),
+);
+```
+
+}
+
+Widget \_buildSectionTitle(String title, BuildContext context) {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return Padding(
+padding: const EdgeInsets.only(bottom: 8.0),
+child: Text(
+title,
+style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.primary),
+textScaler: TextScaler.linear(textScaler),
+),
+);
+}
+
+Widget \_buildFontSizeSetting() {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return ListTile(
+title: Text('Dimensione testo', textScaler: TextScaler.linear(textScaler)),
+subtitle: Slider(
+value: \_currentSettings.fontSize,
+min: 50,
+max: 200,
+divisions: 15,
+label: '${\_currentSettings.fontSize.round()}%',
+onChanged: (value) {
+setState(() {
+\_currentSettings.fontSize = value;
+});
+},
+),
+trailing: Text('${\_currentSettings.fontSize.round()}%', textScaler: TextScaler.linear(textScaler)),
+);
+}
+
+Widget \_buildThemeSetting(ThemeProvider themeProvider) {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return ListTile(
+title: Text('Tema', textScaler: TextScaler.linear(textScaler)),
+trailing: DropdownButton\<String\>(
+value: \_currentSettings.theme,
+items: const [
+DropdownMenuItem(value: 'system', child: Text('Sistema')),
+DropdownMenuItem(value: 'light', child: Text('Chiaro')),
+DropdownMenuItem(value: 'dark', child: Text('Scuro')),
+],
+onChanged: (value) {
+if (value \!= null) {
+setState(() {
+\_currentSettings.theme = value;
+if (value == 'light') themeProvider.setThemeMode(ThemeMode.light);
+else if (value == 'dark') themeProvider.setThemeMode(ThemeMode.dark);
+else themeProvider.setThemeMode(ThemeMode.system);
+});
+}
+},
+),
+);
+}
+
+Widget \_buildDrugReminderSetting() {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return Column(
+children: [
+SwitchListTile(
+title: Text('Avviso ripetizione farmaci', textScaler: TextScaler.linear(textScaler)),
+value: \_currentSettings.drugReminderEnabled,
+onChanged: (value) {
+setState(() {
+\_currentSettings.drugReminderEnabled = value;
+});
+},
+),
+if (\_currentSettings.drugReminderEnabled)
+ListTile(
+title: Text('Ripetizione ogni (giorni)', textScaler: TextScaler.linear(textScaler)),
+trailing: SizedBox(
+width: 80,
+child: DropdownButton\<int\>(
+isExpanded: true,
+value: \_currentSettings.drugReminderDays,
+items: [15, 30, 45, 60].map((int value) {
+return DropdownMenuItem\<int\>(
+value: value,
+child: Text(value.toString()),
+);
+}).toList(),
+onChanged: (int? newValue) {
+setState(() {
+\_currentSettings.drugReminderDays = newValue\!;
+});
+},
+),
+),
+),
+],
+);
+}
+
+Widget \_buildAppointmentDayReminderSetting() {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return SwitchListTile(
+title: Text('Avviso il giorno prima', textScaler: TextScaler.linear(textScaler)),
+value: \_currentSettings.appointmentDayReminderEnabled,
+onChanged: (value) {
+setState(() {
+\_currentSettings.appointmentDayReminderEnabled = value;
+});
+},
+);
+}
+
+Widget \_buildAppointmentTimeReminderSetting() {
+final textScaler = Provider.of\<AppProvider\>(context).fontSizeMultiplier;
+return Column(
+children: [
+SwitchListTile(
+title: Text('Avviso prima della visita', textScaler: TextScaler.linear(textScaler)),
+value: \_currentSettings.appointmentTimeReminderEnabled,
+onChanged: (value) {
+setState(() {
+\_currentSettings.appointmentTimeReminderEnabled = value;
+});
+},
+),
+if (\_currentSettings.appointmentTimeReminderEnabled)
+ListTile(
+title: Text('Avvisami (minuti prima)', textScaler: TextScaler.linear(textScaler)),
+trailing: SizedBox(
+width: 80,
+child: DropdownButton\<int\>(
+isExpanded: true,
+value: \_currentSettings.appointmentReminderMinutes,
+items: [30, 60, 90, 120].map((int value) {
+return DropdownMenuItem\<int\>(
+value: value,
+child: Text(value.toString()),
+);
+}).toList(),
+onChanged: (int? newValue) {
+setState(() {
+\_currentSettings.appointmentReminderMinutes = newValue\!;
+});
+},
+),
+),
+),
+],
+);
+}
+}
+%%END
+
+```
+%%FILE: lib/services/api_service.dart
+%%BEGIN
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:seg_medico/models/models.dart';
+
+class ApiService {
+  final String _baseUrl = "https://api.example.com"; // Sostituisci con il tuo URL base
+  String? _authToken;
+
+  void setAuthToken(String token) {
+    _authToken = token;
+  }
+
+  void clearAuthToken() {
+    _authToken = null;
+  }
+
+  Map<String, String> get _headers {
+    final headers = {'Content-Type': 'application/json'};
+    if (_authToken != null) {
+      headers['Authorization'] = 'Bearer $_authToken';
+    }
+    return headers;
+  }
+
+  // --- Autenticazione ---
+
+  Future<void> requestSmsCode(String phone) async {
+    // Simula la chiamata basata sul file .har
+    print("API: Richiesta codice SMS per $phone");
+    await Future.delayed(const Duration(seconds: 1));
+    // In un'app reale, qui faresti una chiamata HTTP POST
+    // final response = await http.post(
+    //   Uri.parse('$_baseUrl/auth/request-code'),
+    //   headers: _headers,
+    //   body: jsonEncode({'phone': phone}),
+    // );
+    // if (response.statusCode != 200) {
+    //   throw Exception('Errore durante la richiesta del codice SMS');
+    // }
+  }
+
+  Future<String> verifySmsCode(String phone, String code) async {
+    // Simula la chiamata basata sul file .har
+    print("API: Verifica codice $code per $phone");
+    await Future.delayed(const Duration(seconds: 1));
+    if (code == "123456") { // Codice di test
+      return "fake-jwt-token-for-${phone}";
+    } else {
+      throw Exception("Codice errato o scaduto");
+    }
+  }
+
+  // --- Appuntamenti ---
+
+  Future<List<Appointment>> getAppointments() async {
+      // Simula una chiamata API
+      await Future.delayed(const Duration(milliseconds: 500));
+      return [
+          Appointment(id: 'appt1', date: DateTime.now().add(const Duration(days: 3, hours: 5)), notes: 'Chiedere dosaggio nuovo farmaco'),
+      ];
+  }
+
+  Future<List<AppointmentSlot>> getAppointmentSlots(String ambulatorioId, String numero) async {
+    // Simula la chiamata basata sul file .har
+    print("API: Richiesta slot per $ambulatorioId, numero $numero");
+    await Future.delayed(const Duration(seconds: 1));
+    // In un'app reale, la risposta sarebbe JSON, da parsare in oggetti AppointmentSlot
+    return [
+      AppointmentSlot(id: "slot1", startTime: DateTime(2025, 7, 28, 10, 0), endTime: DateTime(2025, 7, 28, 10, 15)),
+      AppointmentSlot(id: "slot2", startTime: DateTime(2025, 7, 29, 14, 0), endTime: DateTime(2025, 7, 29, 14, 15)),
+      AppointmentSlot(id: "slot3", startTime: DateTime(2025, 7, 30, 9, 30), endTime: DateTime(2025, 7, 30, 9, 45)),
+    ];
+  }
+
+  Future<void> bookAppointment(String slotId, String notes) async {
+    // Simula la chiamata basata sul file .har
+    print("API: Prenotazione slot $slotId con note '$notes'");
+    await Future.delayed(const Duration(seconds: 1));
+    // final response = await http.post(
+    //   Uri.parse('$_baseUrl/appointments/book'),
+    //   headers: _headers,
+    //   body: jsonEncode({'slot_id': slotId, 'notes': notes}),
+    // );
+    // if (response.statusCode != 201) {
+    //   throw Exception('Errore durante la prenotazione');
+    // }
+  }
+
+  Future<void> cancelAppointment(String appointmentId) async {
+    // Simula la chiamata basata sul file .har
+    print("API: Cancellazione appuntamento $appointmentId");
+    await Future.delayed(const Duration(seconds: 1));
+    // final response = await http.post(
+    //   Uri.parse('$_baseUrl/appointments/cancel'),
+    //   headers: _headers,
+    //   body: jsonEncode({'appointment_id': appointmentId}),
+    // );
+    // if (response.statusCode != 200) {
+    //   throw Exception('Errore durante la cancellazione');
+    // }
+  }
+
+  // --- Farmaci ---
+
+  Future<void> orderDrugs(List<String> drugIds, String notes, String profileId) async {
+    // Simula la chiamata basata sul file .har
+    print("API: Ordine farmaci $drugIds con note '$notes' per profilo $profileId");
+    await Future.delayed(const Duration(seconds: 2));
+    // final response = await http.post(
+    //   Uri.parse('$_baseUrl/drugs/order'),
+    //   headers: _headers,
+    //   body: jsonEncode({'drug_ids': drugIds, 'notes': notes, 'profile_id': profileId}),
+    // );
+    // if (response.statusCode != 200) {
+    //   throw Exception("Errore durante l'ordine dei farmaci");
+    // }
+  }
+}
+%%END
+```
+
+%%FILE: lib/utils/profile\_manager.dart
+%%BEGIN
+import 'dart:convert';
+import 'package:flutter\_secure\_storage/flutter\_secure\_storage.dart';
+import 'package:seg\_medico/models/models.dart';
+import 'package:shared\_preferences/shared\_preferences.dart';
+
+class ProfileManager {
+static const \_profilesKey = 'user\_profiles';
+static const \_defaultProfileKey = 'default\_profile\_id';
+static const \_settingsKey = 'app\_settings';
+
+late SharedPreferences \_prefs;
+final \_secureStorage = const FlutterSecureStorage();
+
+Future\<void\> init() async {
+\_prefs = await SharedPreferences.getInstance();
+}
+
+// --- Gestione Profili ---
+
+List\<Profile\> getProfiles() {
+final profilesJson = \_prefs.getStringList(\_profilesKey) ?? [];
+return profilesJson.map((jsonString) =\> Profile.fromJson(jsonDecode(jsonString))).toList();
+}
+
+Future\<void\> saveProfile(Profile profile) async {
+final profiles = getProfiles();
+final index = profiles.indexWhere((p) =\> p.id == profile.id);
+if (index \!= -1) {
+profiles[index] = profile; // Aggiorna
+} else {
+profiles.add(profile); // Aggiungi
+}
+await \_saveProfilesList(profiles);
+}
+
+Future\<void\> deleteProfile(String profileId) async {
+final profiles = getProfiles();
+profiles.removeWhere((p) =\> p.id == profileId);
+await \_saveProfilesList(profiles);
+await deleteToken(profileId); // Rimuovi anche il token associato
+if (await getDefaultProfileId() == profileId) {
+await \_prefs.remove(\_defaultProfileKey);
+}
+}
+
+Future\<void\> \_saveProfilesList(List\<Profile\> profiles) async {
+final profilesJson = profiles.map((p) =\> jsonEncode(p.toJson())).toList();
+await \_prefs.setStringList(\_profilesKey, profilesJson);
+}
+
+Future\<Profile?\> getProfile(String profileId) async {
+final profiles = getProfiles();
+try {
+return profiles.firstWhere((p) =\> p.id == profileId);
+} catch (e) {
+return null;
+}
+}
+
+// --- Profilo di Default ---
+
+Future\<String?\> getDefaultProfileId() async {
+return \_prefs.getString(\_defaultProfileKey);
+}
+
+Future\<void\> setDefaultProfile(String profileId) async {
+await \_prefs.setString(\_defaultProfileKey, profileId);
+}
+
+Future\<Profile?\> getDefaultProfile() async {
+final defaultId = await getDefaultProfileId();
+if (defaultId \!= null) {
+return getProfile(defaultId);
+}
+// Se non c'è un default, restituisci il primo profilo se esiste
+final allProfiles = getProfiles();
+if (allProfiles.isNotEmpty) {
+await setDefaultProfile(allProfiles.first.id);
+return allProfiles.first;
+}
+return null;
+}
+
+// --- Gestione Token ---
+
+Future\<void\> saveToken(String profileId, String token) async {
+await *secureStorage.write(key: 'auth\_token*$profileId', value: token);
+}
+
+Future\<String?\> getToken(String profileId) async {
+return await *secureStorage.read(key: 'auth\_token*$profileId');
+}
+
+Future\<void\> deleteToken(String profileId) async {
+await *secureStorage.delete(key: 'auth\_token*$profileId');
+}
+
+// --- Gestione Impostazioni ---
+
+Future\<void\> saveSettings(Settings settings) async {
+final settingsJson = jsonEncode(settings.toJson());
+await \_prefs.setString(\_settingsKey, settingsJson);
+}
+
+Future\<Settings\> loadSettings() async {
+final settingsJson = \_prefs.getString(\_settingsKey);
+if (settingsJson \!= null) {
+return Settings.fromJson(jsonDecode(settingsJson));
+}
+return Settings(); // Ritorna impostazioni di default
+}
+}
+%%END
+
+```
+%%FILE: lib/widgets/login_dialog.dart
+%%BEGIN
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:pinput/pinput.dart';
+import 'package:provider/provider.dart';
+import 'package:seg_medico/providers/app_provider.dart';
+
+class LoginDialog extends StatefulWidget {
+  const LoginDialog({Key? key}) : super(key: key);
+
+  @override
+  _LoginDialogState createState() => _LoginDialogState();
+}
+
+class _LoginDialogState extends State<LoginDialog> {
+  bool _isCodeRequested = false;
+  int _cooldown = 60;
+  Timer? _timer;
+  final _pinController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  void _startCooldown() {
+    _cooldown = 60;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_cooldown > 0) {
+        setState(() {
+          _cooldown--;
+        });
+      } else {
+        _timer?.cancel();
+      }
+    });
+  }
+
+  void _requestCode(AppProvider appProvider) async {
+    setState(() {
+      _isCodeRequested = true;
+    });
+    await appProvider.requestLoginSms();
+    if (appProvider.errorMessage == null) {
+      _startCooldown();
+    } else {
+       if(mounted){
+           ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(appProvider.errorMessage ?? 'Errore sconosciuto')),
+          );
+       }
+      setState(() {
+        _isCodeRequested = false;
+      });
+    }
+  }
+
+  void _login(AppProvider appProvider) async {
+    if (_formKey.currentState!.validate()) {
+      final success = await appProvider.login(_pinController.text);
+      if(mounted){
+          if (success) {
+            Navigator.of(context).pop();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(appProvider.errorMessage ?? 'Errore durante il login.')),
+            );
+          }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appProvider = Provider.of<AppProvider>(context);
+    final profile = appProvider.currentProfile;
+
+    if (profile == null) {
+      return const AlertDialog(
+        title: Text('Errore'),
+        content: Text('Nessun profilo selezionato.'),
+      );
+    }
+
+    return AlertDialog(
+      title: Center(child: Text(profile.name.toUpperCase())),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Telefono: ${profile.phone}'),
+            const SizedBox(height: 24),
+            if (!_isCodeRequested)
+              _buildRequestCodeView(appProvider)
+            else
+              _buildVerifyCodeView(appProvider),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('ANNULLA'),
+        )
+      ],
+    );
+  }
+
+  Widget _buildRequestCodeView(AppProvider appProvider) {
+    return ElevatedButton(
+      onPressed: appProvider.isLoading ? null : () => _requestCode(appProvider),
+      child: appProvider.isLoading
+          ? const CircularProgressIndicator(color: Colors.white)
+          : const Text('RICHIEDI CODICE SMS'),
+    );
+  }
+
+  Widget _buildVerifyCodeView(AppProvider appProvider) {
+    final defaultPinTheme = PinTheme(
+      width: 56,
+      height: 56,
+      textStyle: const TextStyle(fontSize: 20, color: Color.fromRGBO(30, 60, 87, 1), fontWeight: FontWeight.w600),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color.fromRGBO(234, 239, 243, 1)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+    );
+
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          const Text('Inserisci codice SMS (6 cifre)'),
+          const SizedBox(height: 16),
+          Pinput(
+            length: 6,
+            controller: _pinController,
+            defaultPinTheme: defaultPinTheme,
+            focusedPinTheme: defaultPinTheme.copyDecorationWith(
+              border: Border.all(color: Theme.of(context).primaryColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            submittedPinTheme: defaultPinTheme.copyWith(
+              decoration: defaultPinTheme.decoration?.copyWith(
+                color: const Color.fromRGBO(234, 239, 243, 1),
+              ),
+            ),
+            validator: (s) {
+              return s?.length == 6 ? null : 'Il codice deve essere di 6 cifre';
+            },
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: appProvider.isLoading ? null : () => _login(appProvider),
+            child: appProvider.isLoading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text('ACCEDI'),
+          ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: _cooldown > 0 ? null : () => _requestCode(appProvider),
+            child: Text(_cooldown > 0 ? 'Reinvia tra $_cooldown s' : 'Reinvia codice'),
+          )
+        ],
+      ),
+    );
+  }
+}
+%%END
+```
+
+%%FILE: lib/widgets/main\_drawer.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg\_medico/providers/app\_provider.dart';
+import 'package:seg\_medico/screens/appointments\_screen.dart';
+import 'package:seg\_medico/screens/drugs\_screen.dart';
+import 'package:seg\_medico/screens/history\_screen.dart';
+import 'package:seg\_medico/screens/home\_screen.dart';
+import 'package:seg\_medico/screens/settings\_screen.dart';
+import 'package:seg\_medico/widgets/login\_dialog.dart';
+
+class MainDrawer extends StatelessWidget {
+const MainDrawer({Key? key}) : super(key: key);
+
+@override
+Widget build(BuildContext context) {
+final appProvider = Provider.of\<AppProvider\>(context);
+final textScaler = appProvider.fontSizeMultiplier;
+
+```
+return Drawer(
+  child: ListView(
+    padding: EdgeInsets.zero,
+    children: <Widget>[
+      DrawerHeader(
+        decoration: BoxDecoration(
+          color: Theme.of(context).primaryColor,
+        ),
+        child: Text(
+          'Menu',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24 * textScaler,
+          ),
+        ),
+      ),
+      _buildDrawerItem(
+        icon: Icons.home,
+        text: 'Home',
+        textScaler: textScaler,
+        onTap: () => Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        ),
+      ),
+      _buildDrawerItem(
+        icon: Icons.history,
+        text: 'Cronologia',
+        textScaler: textScaler,
+        isEnabled: appProvider.isLoggedIn,
+        onTap: () => _navigateTo(context, const HistoryScreen()),
+      ),
+      _buildDrawerItem(
+        icon: Icons.medical_services,
+        text: 'Farmaci',
+        textScaler: textScaler,
+        isEnabled: appProvider.isLoggedIn,
+        onTap: () => _navigateTo(context, const DrugsScreen()),
+      ),
+      _buildDrawerItem(
+        icon: Icons.calendar_today,
+        text: 'Appuntamenti',
+        textScaler: textScaler,
+        isEnabled: appProvider.isLoggedIn,
+        onTap: () => _navigateTo(context, const AppointmentsScreen()),
+      ),
+      const Divider(),
+      _buildDrawerItem(
+        icon: Icons.settings,
+        text: 'Impostazioni',
+        textScaler: textScaler,
+        onTap: () => _navigateTo(context, const SettingsScreen()),
+      ),
+    ],
+  ),
+);
+```
+
+}
+
+ListTile \_buildDrawerItem({
+required IconData icon,
+required String text,
+required double textScaler,
+required VoidCallback onTap,
+bool isEnabled = true,
+}) {
+return ListTile(
+leading: Icon(icon),
+title: Text(text, textScaler: TextScaler.linear(textScaler)),
+onTap: isEnabled ? onTap : null,
+enabled: isEnabled,
+);
+}
+
+void *navigateTo(BuildContext context, Widget screen) {
+final appProvider = Provider.of\<AppProvider\>(context, listen: false);
+if (appProvider.isLoggedIn) {
+Navigator.pop(context); // Chiude il drawer
+Navigator.push(
+context,
+MaterialPageRoute(builder: (context) =\> screen),
+);
+} else {
+ScaffoldMessenger.of(context).showSnackBar(
+SnackBar(
+content: const Text('Devi effettuare l'accesso per vedere questa sezione.'),
+action: SnackBarAction(
+label: 'ACCEDI',
+onPressed: () {
+Navigator.pop(context); // Chiude il drawer
+showDialog(
+context: context,
+builder: (*) =\> const LoginDialog(),
+);
+},
+),
+),
+);
+}
+}
+}
+%%END
+
+```
+%%FILE: lib/widgets/profile_dropdown.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:seg_medico/models/models.dart';
+import 'package:seg_medico/providers/app_provider.dart';
+
+class ProfileDropdown extends StatelessWidget {
+  const ProfileDropdown({Key? key}) : super(key: key);
+
+  void _manageProfiles(BuildContext context) {
+    // TODO: Naviga alla schermata di gestione profili
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Schermata gestione profili da implementare.')),
+    );
+  }
+
+  void _logout(BuildContext context) {
+    Provider.of<AppProvider>(context, listen: false).logout();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Logout effettuato.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appProvider = Provider.of<AppProvider>(context);
+    final profiles = appProvider.getProfiles();
+    final currentProfile = appProvider.currentProfile;
+    final textScaler = appProvider.fontSizeMultiplier;
+
+    if (profiles.isEmpty) {
+      return TextButton(
+        onPressed: () => _manageProfiles(context),
+        child: Text(
+          'Aggiungi Profilo',
+          style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor),
+          textScaler: TextScaler.linear(textScaler),
+        ),
+      );
+    }
+
+    return DropdownButton<String>(
+      value: currentProfile?.id,
+      isExpanded: false,
+      underline: Container(), // Nasconde la linea sotto
+      icon: Icon(Icons.arrow_drop_down, color: Theme.of(context).appBarTheme.foregroundColor),
+      onChanged: (String? newValue) {
+        if (newValue != null) {
+            if (newValue == 'manage_profiles') {
+                _manageProfiles(context);
+            } else if (newValue == 'logout') {
+                _logout(context);
+            } else {
+                appProvider.switchProfile(newValue);
+            }
+        }
+      },
+      selectedItemBuilder: (BuildContext context) {
+        return [
+            Center(
+                child: Text(
+                    currentProfile?.name ?? 'Seleziona profilo',
+                    style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor, fontSize: 18),
+                    textScaler: TextScaler.linear(textScaler),
+                ),
+            )
+        ];
+      },
+      items: [
+        ...profiles.map<DropdownMenuItem<String>>((Profile profile) {
+          return DropdownMenuItem<String>(
+            value: profile.id,
+            child: Text(profile.name, textScaler: TextScaler.linear(textScaler)),
+          );
+        }).toList(),
+        const DropdownMenuItem<String>(
+          value: 'manage_profiles',
+          child: ListTile(
+            leading: Icon(Icons.manage_accounts),
+            title: Text('Gestisci Profili'),
+          ),
+        ),
+        if (appProvider.isLoggedIn)
+          const DropdownMenuItem<String>(
+            value: 'logout',
+            child: ListTile(
+              leading: Icon(Icons.exit_to_app),
+              title: Text('Esci'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+%%END
+```
+
+%%FILE: lib/themes/app\_theme.dart
+%%BEGIN
+import 'package:flutter/material.dart';
+
+class AppTheme {
+static final ThemeData lightTheme = ThemeData(
+primarySwatch: Colors.teal,
+brightness: Brightness.light,
+appBarTheme: const AppBarTheme(
+backgroundColor: Colors.teal,
+foregroundColor: Colors.white,
+),
+elevatedButtonTheme: ElevatedButtonThemeData(
+style: ElevatedButton.styleFrom(
+backgroundColor: Colors.teal,
+foregroundColor: Colors.white,
+padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+textStyle: const TextStyle(fontSize: 16),
+),
+),
+outlinedButtonTheme: OutlinedButtonThemeData(
+style: OutlinedButton.styleFrom(
+foregroundColor: Colors.teal,
+side: const BorderSide(color: Colors.teal),
+padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+textStyle: const TextStyle(fontSize: 16),
+)
+),
+cardTheme: CardTheme(
+elevation: 2,
+shape: RoundedRectangleBorder(
+borderRadius: BorderRadius.circular(12.0),
+),
+),
+);
+
+static final ThemeData darkTheme = ThemeData(
+primarySwatch: Colors.teal,
+brightness: Brightness.dark,
+appBarTheme: const AppBarTheme(
+backgroundColor: Colors.teal,
+foregroundColor: Colors.white,
+),
+elevatedButtonTheme: ElevatedButtonThemeData(
+style: ElevatedButton.styleFrom(
+backgroundColor: Colors.teal.shade300,
+foregroundColor: Colors.black,
+padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+textStyle: const TextStyle(fontSize: 16),
+),
+),
+outlinedButtonTheme: OutlinedButtonThemeData(
+style: OutlinedButton.styleFrom(
+foregroundColor: Colors.teal.shade300,
+side: BorderSide(color: Colors.teal.shade300),
+padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+textStyle: const TextStyle(fontSize: 16),
+)
+),
+cardTheme: CardTheme(
+elevation: 4,
+shape: RoundedRectangleBorder(
+borderRadius: BorderRadius.circular(12.0),
+),
+),
+);
+}
+%%END
+
+```
+%%FILE: pubspec.yaml
+%%BEGIN
+name: seg_medico
+description: A new Flutter project.
+publish_to: 'none' 
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  provider: ^6.0.5
+
+  # UI & Utilities
+  cupertino_icons: ^1.0.2
+  intl: ^0.19.0
+  pinput: ^4.0.0 # For SMS code input
+
+  # Storage
+  shared_preferences: ^2.2.0
+  flutter_secure_storage: ^9.0.0
+
+  # Networking
+  http: ^1.1.0
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+%%END
+```
+
+%%PATCH: lib/screens/booking\_screen.dart
+%%REPLACE
+// Questo file non è più necessario in quanto la sua logica
+// è stata integrata in appointments\_screen.dart
+// Si può procedere alla sua eliminazione.
+%%WITH
+%%END
+
+```
+%%PATCH: lib/screens/appuntamenti_screen.dart
+%%REPLACE
+// Questo file è stato sostituito dal nuovo appointments_screen.dart
+// che combina la visualizzazione delle disponibilità e la prenotazione.
+// Si può procedere alla sua eliminazione.
+%%WITH
+%%END
+```
+
+Ho corretto gli errori iniziali e strutturato l'applicazione secondo le tue specifiche. Ecco un riassunto delle modifiche principali:
+
+1.  **Risoluzione Errori**:
+
+      * `main.dart`: Ho corretto l'inizializzazione di `AppProvider`, passandogli le istanze di `ApiService` e `ProfileManager` necessarie.
+      * `app_provider.dart` e `models.dart`: Ho allineato i tipi di dato per gli appuntamenti. Ora `getAppointmentSlots` restituisce correttamente una `List<AppointmentSlot>`, risolvendo le incongruenze.
+
+2.  **Nuova Struttura delle Schermate**:
+
+      * Ho creato le nuove schermate (`HomeScreen`, `AppointmentsScreen`, `DrugsScreen`, `HistoryScreen`, `SettingsScreen`) basandomi sui tuoi mockup ASCII.
+      * `AppointmentsScreen` ora unifica la logica che prima era divisa tra `appuntamenti_screen.dart` e `booking_screen.dart`. Ho quindi contrassegnato questi due vecchi file come da eliminare.
+
+3.  **Implementazione Funzionalità**:
+
+      * **Login**: Il flusso di login con richiesta e inserimento codice SMS è implementato nel widget `LoginDialog`.
+      * **Home**: La `HomeScreen` ora si adatta dinamicamente allo stato di login, mostrando le informazioni e i pulsanti corretti.
+      * **Appuntamenti**: La nuova schermata permette di visualizzare le disponibilità, selezionare uno slot e prenotare.
+      * **Farmaci**: Implementata la selezione dei farmaci e l'invio dell'ordine.
+      * **Impostazioni e Cronologia**: Create le basi per queste schermate, pronte per essere popolate con dati reali.
+
+4.  **Servizi e Gestione Dati**:
+
+      * `api_service.dart`: Ho aggiunto metodi simulati per le nuove chiamate API (appuntamenti, farmaci) basandomi sui tuoi file `.har`. Dovrai sostituire la logica simulata con le chiamate HTTP reali.
+      * `profile_manager.dart`: Gestisce la persistenza dei profili utente e delle impostazioni usando `shared_preferences` e `flutter_secure_storage` per i token.
+
+Ora l'applicazione è più robusta, completa e allineata al design che hai fornito.

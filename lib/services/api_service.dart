@@ -1,232 +1,107 @@
-// lib/services/api_service.dart
-import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:seg_medico/models/models.dart';
-import 'package:intl/intl.dart'; // Import for DateTime parsing
 
 class ApiService {
-  final Dio _dio;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
-  static const String _baseUrl = 'https://segreteriamedico.it/api/paziente';
-  String? _token;
+  final String _baseUrl = "https://api.example.com"; // Sostituisci con il tuo URL base
+  String? _authToken;
 
-  ApiService() : _dio = Dio() {
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          if (_token == null) {
-            _token = await _secureStorage.read(key: 'auth_token');
-          }
-          if (_token != null && options.headers['Authorization'] == null) {
-            options.headers['Authorization'] = 'Bearer $_token';
-          }
-          return handler.next(options);
-        },
-        onError: (DioException e, handler) async {
-          if (e.response?.statusCode == 401) {
-            await removeToken();
-            // TODO: Consider navigating to login screen or showing a re-login prompt
-          }
-          return handler.next(e);
-        },
-      ),
-    );
+  void setAuthToken(String token) {
+    _authToken = token;
   }
 
-  Future<void> setToken(String token) async {
-    _token = token;
-    await _secureStorage.write(key: 'auth_token', value: token);
+  void clearAuthToken() {
+    _authToken = null;
   }
 
-  Future<String?> getToken() async {
-    if (_token == null) {
-      _token = await _secureStorage.read(key: 'auth_token');
+  Map<String, String> get _headers {
+    final headers = {'Content-Type': 'application/json'};
+    if (_authToken != null) {
+      headers['Authorization'] = 'Bearer $_authToken';
     }
-    return _token;
+    return headers;
   }
 
-  Future<void> removeToken() async {
-    _token = null;
-    await _secureStorage.delete(key: 'auth_token');
+  // --- Autenticazione ---
+
+  Future<void> requestSmsCode(String phone) async {
+    print("API: Richiesta codice SMS per $phone");
+    await Future.delayed(const Duration(seconds: 1));
   }
 
-  Future<bool> requestOtp(String codFis, String phoneNumber) async {
-    try {
-      final response = await _dio.post(
-        '$_baseUrl/otp/',
-        data: {'cod_fis': codFis, 'phone_number': phoneNumber},
-      );
-      return response.statusCode == 200;
-    } on DioException catch (e) {
-      print('OTP Request Error: $e');
-      return false;
+  Future<String> verifySmsCode(String phone, String code) async {
+    print("API: Verifica codice $code per $phone");
+    await Future.delayed(const Duration(seconds: 1));
+    if (code == "123456") {
+      return "fake-jwt-token-for-$phone";
+    } else {
+      throw Exception("Codice errato o scaduto");
     }
   }
 
-  Future<String?> login(String codFis, String phoneNumber, String otp) async {
-    try {
-      final response = await _dio.post(
-        '$_baseUrl/login/',
-        data: {
-          'cod_fis': codFis,
-          'phone_number': phoneNumber,
-          'otp': otp,
-        },
-      );
-      if (response.statusCode == 200 && response.data != null) {
-        final token = response.data['token'];
-        if (token != null) {
-          await setToken(token);
-          return token;
-        }
-      }
-      return null;
-    } on DioException catch (e) {
-      print('Login Error: $e');
-      return null;
-    }
+  Future<void> logout() async {
+      print("API: Logout");
+      await Future.delayed(const Duration(milliseconds: 500));
+      clearAuthToken();
   }
 
-  Future<UserInfo?> getUserInfo() async {
-    try {
-      final response = await _dio.get('$_baseUrl/info/');
-      if (response.statusCode == 200 && response.data != null) {
-        return UserInfo.fromJson(response.data);
-      }
-      return null;
-    } on DioException catch (e) {
-      print('Get User Info Error: $e');
-      return null;
-    }
-  }
-
-  // Changed return type to Map<DateTime, List<String>>
-  Future<Map<DateTime, List<String>>> getAppointmentSlots(
-      int ambulatorioId, int numero) async {
-    try {
-      final response = await _dio.get(
-        '$_baseUrl/slots/',
-        queryParameters: {
-          'ambulatorio_id': ambulatorioId,
-          'numero': numero,
-        },
-      );
-      if (response.statusCode == 200 && response.data != null) {
-        final Map<DateTime, List<String>> slotsMap = {};
-        for (var e in (response.data as List)) {
-          final slot = AppointmentSlot.fromJson(e as Map<String, dynamic>);
-          // Group by date, and add time to the list
-          if (!slotsMap.containsKey(slot.date)) {
-            slotsMap[slot.date] = [];
-          }
-          slotsMap[slot.date]!.add(slot.time);
-        }
-        return slotsMap;
-      }
-      return {};
-    } on DioException catch (e) {
-      print('Get Appointment Slots Error: $e');
-      return {};
-    }
-  }
-
-  Future<int?> bookAppointment({
-    required int ambulatorioId,
-    required int numero,
-    required String data,
-    required String inizio,
-    required String fine,
-    required String telefono,
-    String? email,
-  }) async {
-    try {
-      final response = await _dio.post(
-        '$_baseUrl/visita/',
-        data: {
-          'ambulatorio_id': ambulatorioId,
-          'numero': numero,
-          'data': data,
-          'inizio': inizio,
-          'fine': fine,
-          'telefono': telefono,
-          'email': email,
-        },
-      );
-      if (response.statusCode == 200 && response.data != null) {
-        return response.data['id'];
-      }
-      return null;
-    } on DioException catch (e) {
-      print('Book Appointment Error: $e');
-      return null;
-    }
-  }
-
-  Future<bool> sendConfirmation({
-    required int id,
-    String? cellulare,
-    String? email,
-  }) async {
-    try {
-      final response = await _dio.post(
-        '$_baseUrl/invia/',
-        data: {
-          'id': id,
-          'cellulare': cellulare,
-          'email': email,
-        },
-      );
-      return response.statusCode == 200;
-    } on DioException catch (e) {
-      print('Send Confirmation Error: $e');
-      return false;
-    }
-  }
+  // --- Appuntamenti ---
 
   Future<List<Appointment>> getAppointments() async {
-    try {
-      final response = await _dio.get('$_baseUrl/appuntamenti/');
-      if (response.statusCode == 200 && response.data != null) {
-        return (response.data as List)
-            .map((e) => Appointment.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-      return [];
-    } on DioException catch (e) {
-      print('Get Appointments Error: $e');
-      return [];
-    }
+      await Future.delayed(const Duration(milliseconds: 800));
+      return [
+          Appointment(id: 'appt1', date: DateTime(2025, 7, 28, 14, 00), notes: 'Chiedere dosaggio nuovo farmaco'),
+          Appointment(id: 'appt2', date: DateTime(2025, 8, 15, 10, 30), notes: 'Controllo pressione'),
+      ];
   }
 
-  Future<bool> cancelAppointment(int appointmentId, String phoneNumber) async {
-    try {
-      final response = await _dio.delete(
-        '$_baseUrl/appuntamento/$appointmentId/',
-        data: {'phone_number': phoneNumber},
-      );
-      return response.statusCode == 200;
-    } on DioException catch (e) {
-      print('Cancel Appointment Error: $e');
-      return false;
-    }
+  Future<List<AppointmentSlot>> getAppointmentSlots(String ambulatorioId, String numero) async {
+    print("API: Richiesta slot per $ambulatorioId, numero $numero");
+    await Future.delayed(const Duration(seconds: 1));
+    return [
+      AppointmentSlot(id: "slot1", date: DateTime(2025, 7, 28), startTime: const TimeOfDay(hour: 10, minute: 0)),
+      AppointmentSlot(id: "slot2", date: DateTime(2025, 7, 29), startTime: const TimeOfDay(hour: 14, minute: 0)),
+      AppointmentSlot(id: "slot3", date: DateTime(2025, 7, 29), startTime: const TimeOfDay(hour: 14, minute: 30)),
+      AppointmentSlot(id: "slot4", date: DateTime(2025, 7, 30), startTime: const TimeOfDay(hour: 9, minute: 30)),
+    ];
   }
 
-  Future<int?> orderFarmaci(String testoFarmaco, String phoneNumber) async {
-    try {
-      final response = await _dio.post(
-        '$_baseUrl/farmaci/',
-        data: {
-          'testo_farmaco': testoFarmaco,
-          'phone_number': phoneNumber,
-        },
-      );
-      if (response.statusCode == 200 && response.data != null) {
-        return response.data['id'];
-      }
-      return null;
-    } on DioException catch (e) {
-      print('Order Farmaci Error: $e');
-      return null;
-    }
+  Future<void> bookAppointment(AppointmentSlot slot, String notes) async {
+    print("API: Prenotazione slot ${slot.id} in data ${slot.date} alle ${slot.startTime} con note '$notes'");
+    await Future.delayed(const Duration(seconds: 1));
+  }
+
+  Future<void> cancelAppointment(String appointmentId) async {
+    print("API: Cancellazione appuntamento $appointmentId");
+    await Future.delayed(const Duration(seconds: 1));
+  }
+
+  // --- Farmaci ---
+  
+  Future<List<Drug>> getDrugs() async {
+      await Future.delayed(const Duration(milliseconds: 500));
+      return [
+        Drug(id: '1', name: 'Paracetamolo 1000mg'),
+        Drug(id: '2', name: 'Cardioaspirina'),
+        Drug(id: '3', name: 'Integratore Vitamina D'),
+        Drug(id: '4', name: 'Lasix 25mg'),
+      ];
+  }
+
+  Future<void> orderDrugs(List<String> drugIds, String notes, String profileId) async {
+    print("API: Ordine farmaci $drugIds con note '$notes' per profilo $profileId");
+    await Future.delayed(const Duration(seconds: 2));
+  }
+  
+  // --- Cronologia ---
+  Future<List<HistoryEntry>> getHistory() async {
+      await Future.delayed(const Duration(seconds: 1));
+      return [
+        HistoryEntry(date: DateTime(2025, 7, 15), type: 'Farmaco', description: 'Ordine: Paracetamolo – febbre persistente'),
+        HistoryEntry(date: DateTime(2025, 7, 8), type: 'Farmaco', description: 'Ordine: Aspirina – dosaggio aumentato'),
+        HistoryEntry(date: DateTime(2025, 6, 22), type: 'Appuntamento', description: 'Visita dermatologica – controllo nevi'),
+        HistoryEntry(date: DateTime(2025, 5, 10), type: 'Appuntamento', description: 'Cancellata: Visita di controllo'),
+      ];
   }
 }

@@ -1,208 +1,286 @@
-// lib/providers/app_provider.dart
-
 import 'package:flutter/material.dart';
 import 'package:seg_medico/models/models.dart';
 import 'package:seg_medico/services/api_service.dart';
-import 'package:seg_medico/services/profile_manager.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:seg_medico/utils/profile_manager.dart';
+import 'dart:async';
 
 class AppProvider with ChangeNotifier {
   final ApiService _apiService;
   final ProfileManager _profileManager;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
-  UserInfo? _userInfo;
-  UserInfo? get userInfo => _userInfo;
-
+  // State
+  Profile? _currentProfile;
   bool _isLoggedIn = false;
+  String? _authToken;
+  Appointment? _nextAppointment;
+  List<AppointmentSlot> _availableSlots = [];
+  List<Drug> _userDrugs = [];
+  List<HistoryEntry> _history = [];
+  Settings _settings = Settings();
+  bool _isLoading = false;
+  String? _errorMessage;
+  double _fontSizeMultiplier = 1.0;
+
+  // Getters
+  Profile? get currentProfile => _currentProfile;
   bool get isLoggedIn => _isLoggedIn;
-
-  Profile? _selectedProfile;
-  Profile? get selectedProfile => _selectedProfile;
-
-  List<Profile> _profiles = [];
-  List<Profile> get profiles => _profiles;
-
-  Appointment? _upcomingAppointment;
-  Appointment? get upcomingAppointment => _upcomingAppointment;
+  Appointment? get nextAppointment => _nextAppointment;
+  List<AppointmentSlot> get availableSlots => _availableSlots;
+  List<Drug> get userDrugs => _userDrugs;
+  List<HistoryEntry> get history => _history;
+  Settings get settings => _settings;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  double get fontSizeMultiplier => _fontSizeMultiplier;
 
   AppProvider(this._apiService, this._profileManager) {
     _loadInitialData();
   }
 
   Future<void> _loadInitialData() async {
-    await loadProfiles();
-    await _loadSelectedProfile();
-    await checkLoginStatus();
-  }
-
-  Future<void> loadProfiles() async {
-    _profiles = await _profileManager.getProfiles();
+    _settings = await _profileManager.loadSettings();
+    _fontSizeMultiplier = _settings.fontSize / 100.0;
+    await _loadProfileData();
     notifyListeners();
   }
 
-  Future<void> _loadSelectedProfile() async {
-    try {
-      _selectedProfile = await _profileManager.getDefaultProfile();
-    } catch (e) {
-      _selectedProfile = null; // No default profile or not found
-    }
-    notifyListeners();
-  }
-
-  Future<void> selectProfile(Profile? profile) async {
-    _selectedProfile = profile;
-    if (profile != null) {
-      await _profileManager.setDefaultProfile(profile.name);
-    } else {
-      await _profileManager.clearDefaultProfile();
-    }
-    notifyListeners();
-  }
-
-  Future<void> addProfile(Profile profile) async {
-    await _profileManager.addProfile(profile);
-    await loadProfiles();
-  }
-
-  Future<void> updateProfile(Profile profile) async {
-    await _profileManager.updateProfile(profile);
-    await loadProfiles();
-    if (_selectedProfile?.codFis == profile.codFis) {
-      _selectedProfile = profile; // Update selected profile if it was the one edited
-    }
-    notifyListeners();
-  }
-
-  Future<void> deleteProfile(String codFis) async {
-    await _profileManager.deleteProfile(codFis);
-    await loadProfiles();
-    if (_selectedProfile?.codFis == codFis) {
-      _selectedProfile = null; // Deselect if the deleted profile was selected
-      await _profileManager.clearDefaultProfile();
-    }
-    notifyListeners();
-  }
-
-  Future<bool> requestOtp(String codFis, String phoneNumber) async {
-    return await _apiService.requestOtp(codFis, phoneNumber);
-  }
-
-  Future<bool> login(String codFis, String phoneNumber, String otp) async {
-    try {
-      final token = await _apiService.login(codFis, phoneNumber, otp);
-      if (token != null) {
+  Future<void> _loadProfileData() async {
+    _currentProfile = await _profileManager.getDefaultProfile();
+    if (_currentProfile != null) {
+      _authToken = await _profileManager.getToken(_currentProfile!.id);
+      if (_authToken != null && _authToken!.isNotEmpty) {
         _isLoggedIn = true;
-        await _fetchUserInfoAndAppointments();
-        notifyListeners();
-        return true;
+        _apiService.setAuthToken(_authToken!);
+        await fetchAllDataForProfile();
+      } else {
+        _isLoggedIn = false;
+        _cleanProfileData();
       }
-      return false;
+    }
+    notifyListeners();
+  }
+  
+  void _cleanProfileData() {
+      _nextAppointment = null;
+      _userDrugs = [];
+      _history = [];
+  }
+
+  Future<void> fetchAllDataForProfile() async {
+    if (!_isLoggedIn || _currentProfile == null) return;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await Future.wait([
+        fetchNextAppointment(),
+        fetchUserDrugs(),
+        fetchHistory(),
+      ]);
+      _errorMessage = null;
     } catch (e) {
-      print('Login error in provider: $e');
+      _errorMessage = "Errore nel caricamento dei dati: ${e.toString()}";
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> requestLoginSms() async {
+    if (_currentProfile == null) return;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _apiService.requestSmsCode(_currentProfile!.phone);
+      _errorMessage = null;
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> login(String code) async {
+    if (_currentProfile == null) return false;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final token = await _apiService.verifySmsCode(_currentProfile!.phone, code);
+      await _profileManager.saveToken(_currentProfile!.id, token);
+      _authToken = token;
+      _isLoggedIn = true;
+      _apiService.setAuthToken(token);
+      await fetchAllDataForProfile();
+      _errorMessage = null;
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoggedIn = false;
       return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
   Future<void> logout() async {
-    await _apiService.removeToken();
+    if (_currentProfile != null) {
+      await _apiService.logout();
+      await _profileManager.deleteToken(_currentProfile!.id);
+    }
     _isLoggedIn = false;
-    _userInfo = null;
-    _upcomingAppointment = null;
+    _authToken = null;
+    _apiService.clearAuthToken();
+    _cleanProfileData();
     notifyListeners();
   }
 
-  Future<void> checkLoginStatus() async {
-    final token = await _apiService.getToken();
-    if (token != null) {
-      _isLoggedIn = true;
-      await _fetchUserInfoAndAppointments();
-    } else {
-      _isLoggedIn = false;
-      _userInfo = null;
-      _upcomingAppointment = null;
+  Future<void> switchProfile(String profileId) async {
+    final profile = await _profileManager.getProfile(profileId);
+    if (profile != null) {
+      await _profileManager.setDefaultProfile(profileId);
+      await _loadProfileData(); 
     }
-    notifyListeners();
+  }
+  
+  List<Profile> getProfiles() {
+    return _profileManager.getProfiles();
   }
 
-  Future<void> _fetchUserInfoAndAppointments() async {
-    _userInfo = await _apiService.getUserInfo();
-    if (_userInfo != null) {
-      await fetchUpcomingAppointment();
-    }
-    notifyListeners();
+  Future<void> addProfile(Profile profile) async {
+    await _profileManager.saveProfile(profile);
+    await _loadProfileData();
   }
 
-  Future<void> fetchUpcomingAppointment() async {
-    if (_isLoggedIn) {
+  Future<void> deleteProfile(String profileId) async {
+    await _profileManager.deleteProfile(profileId);
+    await _loadProfileData();
+  }
+
+
+  // Appointments
+  Future<void> fetchNextAppointment() async {
+    if (!_isLoggedIn || _currentProfile == null) return;
+    try {
       final appointments = await _apiService.getAppointments();
-      if (appointments.isNotEmpty) {
-        // Find the next upcoming appointment
-        final now = DateTime.now();
-        _upcomingAppointment = appointments.firstWhere(
-          (app) {
-            final appDateTime = DateTime.parse('${app.data} ${app.inizio}');
-            return appDateTime.isAfter(now);
-          },
-          orElse: () => throw Exception('No upcoming appointments found'),
-        );
+      final upcoming = appointments.where((a) => a.date.isAfter(DateTime.now())).toList();
+      if(upcoming.isNotEmpty){
+        upcoming.sort((a,b) => a.date.compareTo(b.date));
+        _nextAppointment = upcoming.first;
       } else {
-        _upcomingAppointment = null;
+        _nextAppointment = null;
       }
-    } else {
-      _upcomingAppointment = null;
+    } catch (e) {
+      _errorMessage = "Impossibile caricare il prossimo appuntamento.";
     }
     notifyListeners();
   }
 
-  Future<bool> cancelAppointment(int appointmentId, String phoneNumber) async {
-    final success = await _apiService.cancelAppointment(appointmentId, phoneNumber);
-    if (success) {
-      await fetchUpcomingAppointment(); // Refresh upcoming appointment
+  Future<void> fetchAvailableSlots() async {
+    if (!_isLoggedIn || _currentProfile == null) return;
+    _isLoading = true;
+    _availableSlots = [];
+    notifyListeners();
+    try {
+      _availableSlots = await _apiService.getAppointmentSlots("AMB01", "12345");
+    } catch (e) {
+      _errorMessage = "Impossibile caricare le disponibilità.";
+      _availableSlots = [];
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-    return success;
   }
 
-  Future<List<AppointmentSlot>> getAppointmentSlots(int ambulatorioId, int numero) async {
-    return await _apiService.getAppointmentSlots(ambulatorioId, numero);
+  Future<bool> bookAppointment(AppointmentSlot slot, String notes) async {
+    if (!_isLoggedIn) return false;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _apiService.bookAppointment(slot, notes);
+      await fetchNextAppointment(); // Refresh appointments
+      return true;
+    } catch (e) {
+      _errorMessage = "Errore durante la prenotazione: ${e.toString()}";
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  Future<bool> bookAppointment({
-    required int ambulatorioId,
-    required int numero,
-    required String data,
-    required String inizio,
-    required String fine,
-    required String telefono,
-    String? email,
-  }) async {
-    final appointmentId = await _apiService.bookAppointment(
-      ambulatorioId: ambulatorioId,
-      numero: numero,
-      data: data,
-      inizio: inizio,
-      fine: fine,
-      telefono: telefono,
-    );
-    if (appointmentId != null) {
-      final success = await _apiService.sendConfirmation(
-        id: appointmentId,
-        email: email,
-        cellulare: telefono,
-      );
-      if (success) {
-        await fetchUpcomingAppointment(); // Refresh upcoming appointment
+  Future<void> cancelAppointment(String appointmentId) async {
+    if (!_isLoggedIn) return;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _apiService.cancelAppointment(appointmentId);
+      await fetchNextAppointment(); // Cerca il prossimo disponibile
+      await fetchHistory(); // Refresh history
+    } catch (e) {
+      _errorMessage = "Errore durante la cancellazione: ${e.toString()}";
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Drugs
+  Future<void> fetchUserDrugs() async {
+    if (!_isLoggedIn || _currentProfile == null) return;
+    _userDrugs = await _apiService.getDrugs();
+    notifyListeners();
+  }
+
+  Future<bool> orderDrugs(List<String> drugIds, String notes) async {
+     if (!_isLoggedIn || currentProfile == null) return false;
+    _isLoading = true;
+    notifyListeners();
+    try {
+        await _apiService.orderDrugs(drugIds, notes, currentProfile!.id);
+        await fetchHistory();
+        return true;
+    } catch (e) {
+        _errorMessage = "Errore durante l'ordine: ${e.toString()}";
+        return false;
+    } finally {
+        _isLoading = false;
+        notifyListeners();
+    }
+  }
+
+  // History
+  Future<void> fetchHistory() async {
+    if (!_isLoggedIn) return;
+    _history = await _apiService.getHistory();
+    _history.sort((a, b) => b.date.compareTo(a.date));
+    notifyListeners();
+  }
+
+  // Settings
+  Future<void> updateSettings(Settings newSettings) async {
+    _settings = newSettings;
+    _fontSizeMultiplier = _settings.fontSize / 100.0;
+    await _profileManager.saveSettings(_settings);
+    notifyListeners();
+  }
+  
+  void updateFontSize(double percentage) {
+      if (percentage >= 50 && percentage <= 200) {
+          _settings.fontSize = percentage;
+          _fontSizeMultiplier = percentage / 100.0;
+          notifyListeners();
       }
-      return success;
-    }
-    return false;
   }
+}
 
-  Future<bool> orderFarmaci(String testoFarmaco, String phoneNumber, String? email) async {
-    final orderId = await _apiService.orderFarmaci(testoFarmaco, phoneNumber);
-    if (orderId != null) {
-      return await _apiService.sendConfirmation(id: orderId, cellulare: phoneNumber, email: email);
-    }
-    return false;
+class ThemeProvider with ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode get themeMode => _themeMode;
+
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    notifyListeners();
   }
 }

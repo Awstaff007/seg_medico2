@@ -1,0 +1,154 @@
+--- a/booking_screen.dart+++ b/booking_screen.dart@@ -1,151 +1,3 @@-import 'package:flutter/material.dart';
+-import 'package:provider/provider.dart';
+-import 'package:seg_medico/providers/app_provider.dart';
+-import 'package:seg_medico/models/models.dart'; // Per AppointmentSlot
+-import 'package:intl/intl.dart';
+-
+-class BookingScreen extends StatefulWidget {
+-  final int ambulatorioId;
+-  final int numero;
+-
+-  BookingScreen({required this.ambulatorioId, required this.numero});
+-
+-  @override
+-  _BookingScreenState createState() => _BookingScreenState();
+-}
+-
+-class _BookingScreenState extends State<BookingScreen> {
+-  Map<DateTime, List<String>> _availableSlots = {};
+-  List<DateTime> _availableDates = [];
+-  bool _isLoading = true;
+-
+-  DateTime? _selectedDate;
+-  String? _selectedTime;
+-
+-  @override
+-  void initState() {
+-    super.initState();
+-    _fetchAvailability();
+-  }
+-
+-  Future<void> _fetchAvailability() async {
+-    try {
+-      final appProvider = Provider.of<AppProvider>(context, listen: false);
+-      final List<AppointmentSlot> availability =
+-          await appProvider.getAppointmentSlots(widget.ambulatorioId, widget.numero);
+-
+-      setState(() {
+-        Map<DateTime, List<String>> tempSlots = {};
+-        for (var slot in availability) {
+-          tempSlots.update(
+-            DateTime(slot.date.year, slot.date.month, slot.date.day), // Normalizza la data
+-            (value) => value..add(slot.time),
+-            ifAbsent: () => [slot.time],
+-          );
+-        }
+-        _availableSlots = tempSlots;
+-        _availableDates = tempSlots.keys.toList()..sort();
+-        _isLoading = false;
+-      });
+-    } catch (e) {
+-      print('Error fetching availability: $e');
+-      setState(() {
+-        _isLoading = false;
+-      });
+-    }
+-  }
+-
+-  void _selectDate(DateTime date) {
+-    setState(() {
+-      _selectedDate = date;
+-      _selectedTime = null; // Resetta l'orario quando la data cambia
+-    });
+-  }
+-
+-  void _selectTime(String time) {
+-    setState(() {
+-      _selectedTime = time;
+-    });
+-  }
+-
+-  void _bookAppointment() {
+-    // Logica di prenotazione
+-    if (_selectedDate != null && _selectedTime != null) {
+-      // Esempio di come ottenere l'AppProvider e chiamare bookAppointment
+-      // final appProvider = Provider.of<AppProvider>(context, listen: false);
+-      // appProvider.bookAppointment(
+-      //   ambulatorioId: widget.ambulatorioId,
+-      //   numero: widget.numero,
+-      //   data: DateFormat('yyyy-MM-dd').format(_selectedDate!),
+-      //   inizio: _selectedTime!.split('-')[0], // Assumendo il formato "HH:mm-HH:mm"
+-      //   fine: _selectedTime!.split('-')[1],
+-      //   telefono: 'YOUR_PHONE_NUMBER', // Sostituire con il numero di telefono effettivo dell'utente
+-      // );
+-      print('Prenotazione per $_selectedDate alle $_selectedTime');
+-      ScaffoldMessenger.of(context).showSnackBar(
+-        SnackBar(content: Text('Prenotazione per ${DateFormat('dd/MM/yyyy').format(_selectedDate!)} alle $_selectedTime confermata!')),
+-      );
+-    }
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Scaffold(
+-      appBar: AppBar(title: const Text('Prenota Appuntamento')),
+-      body: _isLoading
+-          ? const Center(child: CircularProgressIndicator())
+-          : Padding(
+-              padding: const EdgeInsets.all(16.0),
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                children: [
+-                  const Text('Seleziona Data:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+-                  const SizedBox(height: 10),
+-                  Wrap(
+-                    spacing: 8.0,
+-                    runSpacing: 8.0,
+-                    children: _availableDates.map((date) {
+-                      return ChoiceChip(
+-                        label: Text(DateFormat('dd/MM/yyyy').format(date)),
+-                        selected: _selectedDate == date,
+-                        onSelected: (selected) {
+-                          if (selected) {
+-                            _selectDate(date);
+-                          }
+-                        },
+-                      );
+-                    }).toList(),
+-                  ),
+-                  const SizedBox(height: 20),
+-                  if (_selectedDate != null) ...[
+-                    const Text('Seleziona Ora:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+-                    const SizedBox(height: 10),
+-                    Wrap(
+-                      spacing: 8.0,
+-                      runSpacing: 8.0,
+-                      children: (_availableSlots[_selectedDate] ?? []).map((time) {
+-                        return ChoiceChip(
+-                          label: Text(time),
+-                          selected: _selectedTime == time,
+-                          onSelected: (selected) {
+-                            if (selected) {
+-                              _selectTime(time);
+-                            }
+-                          },
+-                        );
+-                      }).toList(),
+-                    ),
+-                    const SizedBox(height: 20),
+-                    Center(
+-                      child: ElevatedButton(
+-                        onPressed: (_selectedDate != null && _selectedTime != null) ? _bookAppointment : null,
+-                        child: const Text('Conferma Prenotazione'),
+-                      ),
+-                    ),
+-                  ],
+-                ],
+-              ),
+-            ),
+-    );
+-  }
+-}
++// Questo file non è più necessario in quanto la sua logica
++// è stata integrata in appuntamenti_screen.dart.
++// Si può procedere alla sua eliminazione dal progetto.

@@ -1,110 +1,27 @@
-// lib/screens/appuntamenti_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:seg_medico/models/models.dart';
 import 'package:seg_medico/providers/app_provider.dart';
-import 'package:seg_medico/widgets/custom_snackbar.dart';
+import 'package:seg_medico/widgets/main_drawer.dart';
 
 class AppuntamentiScreen extends StatefulWidget {
-  const AppuntamentiScreen({super.key});
+  const AppuntamentiScreen({Key? key}) : super(key: key);
 
   @override
-  State<AppuntamentiScreen> createState() => _AppuntamentiScreenState();
+  _AppuntamentiScreenState createState() => _AppuntamentiScreenState();
 }
 
 class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
-  // Changed to Map<DateTime, List<String>>
-  Map<DateTime, List<String>> _availableSlots = {};
-  List<DateTime> _availableDates = []; // Added to store sorted dates
-  bool _isLoadingSlots = false;
-  String? _selectedSlotDisplay; // Changed to store the display string
-  final TextEditingController _notesController = TextEditingController();
+  AppointmentSlot? _selectedSlot;
+  final _notesController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _fetchAvailableSlots();
-  }
-
-  Future<void> _fetchAvailableSlots() async {
-    setState(() {
-      _isLoadingSlots = true;
-      _availableSlots = {};
-      _availableDates = [];
-      _selectedSlotDisplay = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppProvider>(context, listen: false).fetchAvailableSlots();
     });
-
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final userInfo = appProvider.userInfo;
-    final selectedProfile = appProvider.selectedProfile; // Also need selected profile for ambulatorio
-
-    // Ensure userInfo and ambulatori are available before fetching slots
-    if (userInfo != null && userInfo.ambulatori.isNotEmpty) {
-      // Assuming ambulatorioId comes from the selected profile or user's primary ambulatorio
-      // For simplicity, using the first ambulatorio from UserInfo, adjust if needed
-      final ambulatorioId = userInfo.ambulatori.first.id;
-      // You might need to determine `numero` based on context, here assuming a default of 1
-      final slots = await appProvider.getAppointmentSlots(ambulatorioId, 1);
-      setState(() {
-        _availableSlots = slots;
-        _availableDates = slots.keys.toList()..sort(); // Sort dates
-        _isLoadingSlots = false;
-      });
-    } else {
-      setState(() {
-        _isLoadingSlots = false;
-      });
-      CustomSnackBar.show(context, 'Nessun ambulatorio disponibile o informazioni utente/profilo mancanti.', isError: true);
-    }
-  }
-
-  Future<void> _bookAppointment() async {
-    if (_selectedSlotDisplay == null) {
-      CustomSnackBar.show(context, 'Seleziona uno slot disponibile per prenotare.', isError: true);
-      return;
-    }
-
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final userInfo = appProvider.userInfo;
-    final selectedProfile = appProvider.selectedProfile;
-
-    if (userInfo == null || selectedProfile == null || userInfo.ambulatori.isEmpty) {
-      CustomSnackBar.show(context, 'Informazioni utente o profilo non disponibili. Assicurati di aver selezionato un profilo e che l\'utente abbia ambulatori associati.', isError: true);
-      return;
-    }
-
-    final ambulatorioId = userInfo.ambulatori.first.id; // Using the first ambulatorio
-    final parts = _selectedSlotDisplay!.split(' – ');
-    final datePart = parts[0];
-    final timePart = parts[1];
-
-    final data = DateFormat('dd MMM yyyy', 'it_IT').parse(datePart); // Use Italian locale for parsing
-    final formattedDate = DateFormat('yyyy/MM/dd').format(data); // Format to API required format
-    final inizio = timePart; // This is already in HH:mm format
-    // Calculate 'fine' based on 'inizio', assuming a fixed duration (e.g., 15 minutes)
-    final parsedInizio = DateFormat('HH:mm').parse(inizio);
-    final fine = DateFormat('HH:mm').format(parsedInizio.add(const Duration(minutes: 15))); // Assuming 15 min duration
-
-    final success = await appProvider.bookAppointment(
-      ambulatorioId: ambulatorioId,
-      numero: 1, // Booking 1 slot, adjust if API supports multiple
-      data: formattedDate,
-      inizio: inizio,
-      fine: fine,
-      telefono: selectedProfile.phoneNumber,
-      email: selectedProfile.email, // Use email from profile
-    );
-
-    if (success) {
-      CustomSnackBar.show(context, 'Appuntamento prenotato con successo!');
-      _notesController.clear(); // Clear notes after booking
-      _fetchAvailableSlots(); // Refresh slots after booking
-      // Optionally navigate back or show a confirmation screen
-    } else {
-      CustomSnackBar.show(context, 'Errore durante la prenotazione. Riprova.', isError: true);
-    }
   }
 
   @override
@@ -113,202 +30,178 @@ class _AppuntamentiScreenState extends State<AppuntamentiScreen> {
     super.dispose();
   }
 
+  void _bookAppointment() async {
+    if (_selectedSlot == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Per favore, seleziona una data e un orario.')),
+      );
+      return;
+    }
+
+    final success = await Provider.of<AppProvider>(context, listen: false)
+        .bookAppointment(_selectedSlot!, _notesController.text);
+
+    if (mounted) {
+        if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Appuntamento prenotato con successo!')),
+            );
+            Navigator.of(context).pop();
+        } else {
+            final error = Provider.of<AppProvider>(context, listen: false).errorMessage;
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(error ?? 'Errore durante la prenotazione.')),
+            );
+        }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final textScaler = Provider.of<AppProvider>(context).fontSizeMultiplier;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('APPUNTAMENTI'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.text_fields),
-            onPressed: () {
-              CustomSnackBar.show(context, 'Funzionalità cambio dimensione caratteri non implementata.');
-            },
-          ),
-          Consumer<AppProvider>(
-            builder: (context, appProvider, child) {
-              return DropdownButtonHideUnderline(
-                child: DropdownButton<Profile>(
-                  value: appProvider.selectedProfile,
-                  hint: const Text('Seleziona profilo'),
-                  onChanged: (Profile? newProfile) {
-                    appProvider.selectProfile(newProfile);
-                  },
-                  items: appProvider.profiles.map((Profile profile) {
-                    return DropdownMenuItem<Profile>(
-                      value: profile,
-                      child: Text(profile.name),
-                    );
-                  }).toList(),
-                ),
-              );
-            },
-          ),
-          Consumer<AppProvider>(
-            builder: (context, appProvider, child) {
-              return ElevatedButton(
-                onPressed: () async {
-                  await appProvider.logout();
-                  CustomSnackBar.show(context, 'Logout effettuato.');
-                  // Ensure navigating back to the login/initial screen
-                  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-                },
-                child: const Text('Esci'),
-              );
-            },
-          ),
-        ],
+        title: Text('Appuntamenti', textScaler: TextScaler.linear(textScaler)),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Disponibilità via API:',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            _isLoadingSlots
-                ? const Center(child: CircularProgressIndicator())
-                : _availableDates.isEmpty
-                    ? const Text('Nessuna disponibilità trovata.')
-                    : Expanded(
-                        child: ListView.builder(
-                          itemCount: _availableDates.length,
-                          itemBuilder: (context, dateIndex) {
-                            final date = _availableDates[dateIndex];
-                            final times = _availableSlots[date]!;
-                            final displayDate = DateFormat('dd MMM yyyy', 'it_IT').format(date);
+      drawer: const MainDrawer(),
+      body: Consumer<AppProvider>(
+        builder: (context, appProvider, child) {
+          if (appProvider.isLoading && appProvider.availableSlots.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Text(
-                                    displayDate,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
-                                ),
-                                ...times.map((time) {
-                                  final displayText = '$displayDate – $time';
-                                  return RadioListTile<String>(
-                                    title: Text(displayText),
-                                    value: displayText,
-                                    groupValue: _selectedSlotDisplay,
-                                    onChanged: (String? value) {
-                                      setState(() {
-                                        _selectedSlotDisplay = value;
-                                      });
-                                    },
-                                  );
-                                }).toList(),
-                                const Divider(), // Separator between dates
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-            const SizedBox(height: 20),
-            const Text(
-              '✏ Note visita:',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _notesController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Aggiungi note per la visita...',
+          if (appProvider.errorMessage != null && appProvider.availableSlots.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  appProvider.errorMessage!,
+                  textScaler: TextScaler.linear(textScaler),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ),
-            ),
-            const Spacer(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _selectedSlotDisplay != null ? _bookAppointment : null,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      textStyle: const TextStyle(fontSize: 18),
-                    ),
-                    child: const Text('PRENOTA'),
-                  ),
+                Text(
+                  'Disponibilità:',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textScaler: TextScaler.linear(textScaler),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(height: 16),
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context); // Go back to home
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      textStyle: const TextStyle(fontSize: 18),
-                    ),
-                    child: const Text('ANNULLA'),
+                  child: _buildSlotsList(appProvider.availableSlots, textScaler),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _notesController,
+                  decoration: const InputDecoration(
+                    labelText: '✏️ Note visita (opzionale)',
+                    border: OutlineInputBorder(),
                   ),
+                  textCapitalization: TextCapitalization.sentences,
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('ANNULLA', textScaler: TextScaler.linear(textScaler)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _bookAppointment,
+                        child: Text('PRENOTA', textScaler: TextScaler.linear(textScaler)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          );
+        },
       ),
-      bottomNavigationBar: BottomAppBar(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (String value) {
-                final appProvider = Provider.of<AppProvider>(context, listen: false);
-                if (!appProvider.isLoggedIn) {
-                  CustomSnackBar.show(context, 'Accedi per accedere al menu.');
-                  return;
-                }
-                switch (value) {
-                  case 'cronologia':
-                    Navigator.pushNamed(context, '/cronologia');
-                    break;
-                  case 'farmaci':
-                    Navigator.pushNamed(context, '/farmaci');
-                    break;
-                  case 'appuntamenti':
-                  // Already on appuntamenti screen
-                    break;
-                  case 'impostazioni':
-                    Navigator.pushNamed(context, '/impostazioni');
-                    break;
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'cronologia',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Cronologia' : '⦿ Cronologia (dis.)'),
+    );
+  }
+
+  Widget _buildSlotsList(List<AppointmentSlot> slots, double textScaler) {
+    if (slots.isEmpty) {
+      return Center(
+        child: Text(
+          'Nessuna disponibilità trovata.',
+          style: Theme.of(context).textTheme.bodyLarge,
+          textScaler: TextScaler.linear(textScaler),
+        ),
+      );
+    }
+    
+    // Group slots by date
+    final Map<DateTime, List<AppointmentSlot>> groupedSlots = {};
+    for (var slot in slots) {
+        final dateKey = DateTime(slot.date.year, slot.date.month, slot.date.day);
+        if (groupedSlots[dateKey] == null) {
+            groupedSlots[dateKey] = [];
+        }
+        groupedSlots[dateKey]!.add(slot);
+    }
+    
+    final sortedDates = groupedSlots.keys.toList()..sort();
+
+    return ListView.builder(
+      itemCount: sortedDates.length,
+      itemBuilder: (context, index) {
+        final date = sortedDates[index];
+        final daySlots = groupedSlots[date]!..sort((a,b) => (a.startTime.hour * 60 + a.startTime.minute).compareTo(b.startTime.hour * 60 + b.startTime.minute));
+
+        return Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            DateFormat('EEEE d MMMM yyyy', 'it_IT').format(date),
+                            style: Theme.of(context).textTheme.titleMedium,
+                            textScaler: TextScaler.linear(textScaler),
+                          ),
+                        ),
+                        Wrap(
+                            spacing: 8.0,
+                            runSpacing: 4.0,
+                            children: daySlots.map((slot) {
+                                final isSelected = _selectedSlot?.id == slot.id;
+                                return ChoiceChip(
+                                    label: Text(slot.startTime.format(context)),
+                                    selected: isSelected,
+                                    onSelected: (selected) {
+                                        setState(() {
+                                            if (selected) {
+                                                _selectedSlot = slot;
+                                            }
+                                        });
+                                    },
+                                );
+                            }).toList(),
+                        ),
+                    ],
                 ),
-                PopupMenuItem<String>(
-                  value: 'farmaci',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Farmaci' : '⦿ Farmaci (dis.)'),
-                ),
-                PopupMenuItem<String>(
-                  value: 'appuntamenti',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Appuntamenti' : '⦿ Appuntamenti (dis.)'),
-                ),
-                PopupMenuItem<String>(
-                  value: 'impostazioni',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Impostazioni' : '⦿ Impostazioni (dis.)'),
-                ),
-              ],
             ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

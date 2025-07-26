@@ -1,259 +1,160 @@
-// lib/screens/farmaci_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:seg_medico/models/models.dart';
 import 'package:seg_medico/providers/app_provider.dart';
-import 'package:seg_medico/widgets/custom_snackbar.dart';
-import 'package:seg_medico/models/models.dart'; // Assicurati che questo import sia corretto per Profile
+import 'package:seg_medico/widgets/main_drawer.dart';
 
 class FarmaciScreen extends StatefulWidget {
-  const FarmaciScreen({super.key});
+  const FarmaciScreen({Key? key}) : super(key: key);
 
   @override
-  State<FarmaciScreen> createState() => _FarmaciScreenState();
+  _FarmaciScreenState createState() => _FarmaciScreenState();
 }
 
 class _FarmaciScreenState extends State<FarmaciScreen> {
-  bool _isEditing = false;
-  final TextEditingController _notesController = TextEditingController();
-  List<String> _selectedFarmaci = []; // Example: list of selected medications
-  final List<String> _availableFarmaci = [
-    'Farmaco 1',
-    'Farmaco 2',
-    'Farmaco 3',
-    'Farmaco 4',
-  ]; // Example: list of available medications
+  final _notesController = TextEditingController();
+  bool _isEditMode = false;
+  late List<Drug> _drugs;
 
   @override
   void initState() {
     super.initState();
-    // Load initial notes if any, from a persistent storage (e.g., SharedPreferences)
-    // For now, it's a placeholder.
-    _notesController.text = "Ho aumentato il dosaggio di integratori.";
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    appProvider.fetchUserDrugs();
+    _drugs = appProvider.userDrugs.map((d) => Drug(id: d.id, name: d.name, isSelected: false)).toList();
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final appProvider = Provider.of<AppProvider>(context);
+    // Aggiorna la lista locale se quella nel provider cambia
+    _drugs = appProvider.userDrugs.map((d) => Drug(id: d.id, name: d.name, isSelected: false)).toList();
   }
 
   @override
-  void dispose() {
-    _notesController.dispose();
-    super.dispose();
+  void dispose(){
+      _notesController.dispose();
+      super.dispose();
+  }
+
+  void _orderDrugs() async {
+    final selectedDrugs = _drugs.where((d) => d.isSelected).map((d) => d.id).toList();
+    if (selectedDrugs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Seleziona almeno un farmaco.')),
+      );
+      return;
+    }
+
+    final success = await Provider.of<AppProvider>(context, listen: false)
+        .orderDrugs(selectedDrugs, _notesController.text);
+    
+    if (mounted) {
+        if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Ordine inviato con successo!')),
+            );
+            Navigator.of(context).pop();
+        } else {
+            final error = Provider.of<AppProvider>(context, listen: false).errorMessage;
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(error ?? 'Errore durante l\'invio dell\'ordine.')),
+            );
+        }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final textScaler = Provider.of<AppProvider>(context).fontSizeMultiplier;
+    final appProvider = Provider.of<AppProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FARMACI'),
+        title: Text('Farmaci', textScaler: TextScaler.linear(textScaler)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.text_fields),
+          TextButton(
             onPressed: () {
-              CustomSnackBar.show(context, 'Funzionalità cambio dimensione caratteri non implementata.');
+              setState(() {
+                _isEditMode = !_isEditMode;
+                if (!_isEditMode) {
+                  for (var drug in _drugs) {
+                    drug.isSelected = false;
+                  }
+                }
+              });
             },
-          ),
-          Consumer<AppProvider>(
-            builder: (context, appProvider, child) {
-              return DropdownButtonHideUnderline(
-                child: DropdownButton<Profile>(
-                  value: appProvider.selectedProfile,
-                  hint: const Text('Seleziona profilo'),
-                  onChanged: (Profile? newProfile) {
-                    appProvider.selectProfile(newProfile);
-                  },
-                  items: appProvider.profiles.map((Profile profile) {
-                    return DropdownMenuItem<Profile>(
-                      value: profile,
-                      child: Text(profile.name),
-                    );
-                  }).toList(),
-                ),
-              );
-            },
-          ),
-          Consumer<AppProvider>(
-            builder: (context, appProvider, child) {
-              return ElevatedButton(
-                onPressed: () async {
-                  await appProvider.logout();
-                  CustomSnackBar.show(context, 'Logout effettuato.');
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                child: const Text('Esci'),
-              );
-            },
+            child: Text(_isEditMode ? 'FINE' : 'MODIFICA'),
           ),
         ],
       ),
-      body: Padding(
+      drawer: const MainDrawer(),
+      body: appProvider.isLoading && _drugs.isEmpty ? const Center(child: CircularProgressIndicator())
+      : Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _isEditing = !_isEditing;
-                  });
+            Expanded(
+              child: _drugs.isEmpty
+              ? Center(child: Text("Nessun farmaco in elenco.", textScaler: TextScaler.linear(textScaler)))
+              : ListView.builder(
+                itemCount: _drugs.length,
+                itemBuilder: (context, index) {
+                  final drug = _drugs[index];
+                  return CheckboxListTile(
+                    title: Text(drug.name, textScaler: TextScaler.linear(textScaler)),
+                    value: drug.isSelected,
+                    onChanged: _isEditMode
+                        ? (bool? value) {
+                            setState(() {
+                              drug.isSelected = value ?? false;
+                            });
+                          }
+                        : null,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  );
                 },
-                child: Text(_isEditing ? 'Salva Modifiche' : 'Modifica'),
               ),
             ),
-            const SizedBox(height: 16),
-            ..._availableFarmaci.map((farmaco) {
-              return CheckboxListTile(
-                title: Text(farmaco),
-                value: _selectedFarmaci.contains(farmaco),
-                onChanged: _isEditing
-                    ? (bool? newValue) {
-                        setState(() {
-                          if (newValue == true) {
-                            _selectedFarmaci.add(farmaco);
-                          } else {
-                            _selectedFarmaci.remove(farmaco);
-                          }
-                        });
-                      }
-                    : null, // Disable checkbox if not in editing mode
-              );
-            }).toList(),
-            const SizedBox(height: 20),
             ExpansionTile(
-              title: const Text('Note personali'),
+              title: Text(
+                'Note personali (collassabile)',
+                style: Theme.of(context).textTheme.titleMedium,
+                textScaler: TextScaler.linear(textScaler),
+              ),
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                   child: TextField(
                     controller: _notesController,
-                    maxLines: 3,
-                    enabled: _isEditing,
                     decoration: const InputDecoration(
+                      hintText: 'Ho aumentato il dosaggio di integratori.',
                       border: OutlineInputBorder(),
-                      hintText: 'Aggiungi note personali...',
                     ),
+                    maxLines: 3,
                   ),
                 ),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (_selectedFarmaci.isEmpty) {
-                        CustomSnackBar.show(context, 'Seleziona almeno un farmaco da ordinare.', isError: true);
-                        return;
-                      }
-                      final appProvider = Provider.of<AppProvider>(context, listen: false);
-                      if (appProvider.selectedProfile == null) {
-                        CustomSnackBar.show(context, 'Seleziona un profilo per ordinare i farmaci.', isError: true);
-                        return;
-                      }
-
-                      // Gestisci il caso in cui phoneNumber sia null
-                      if (appProvider.selectedProfile!.phoneNumber == null || appProvider.selectedProfile!.phoneNumber!.isEmpty) {
-                        CustomSnackBar.show(context, 'Il profilo selezionato non ha un numero di telefono. Impossibile inviare l\'ordine.', isError: true);
-                        return;
-                      }
-
-                      final testoFarmaci = _selectedFarmaci.join(', ');
-                      final phoneNumber = appProvider.selectedProfile!.phoneNumber!; // Ora è sicuro usare !
-                      final email = appProvider.selectedProfile!.codFis; // Assumendo codFis può essere usato come email per questa API
-
-                      final success = await appProvider.orderFarmaci(testoFarmaci, phoneNumber, email);
-
-                      if (success) {
-                        CustomSnackBar.show(context, 'Ordine farmaci inviato con successo!');
-                        setState(() {
-                          _selectedFarmaci.clear(); // Clear selected items after ordering
-                          _isEditing = false; // Exit editing mode
-                        });
-                      } else {
-                        CustomSnackBar.show(context, 'Errore durante l\'invio dell\'ordine. Riprova.', isError: true);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      textStyle: const TextStyle(fontSize: 18),
-                    ),
-                    child: const Text('ORDINA'),
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('ANNULLA', textScaler: TextScaler.linear(textScaler)),
                   ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEditing = false;
-                        _selectedFarmaci.clear(); // Clear selections on cancel
-                        // Reset notes to original if implemented
-                      });
-                      Navigator.pop(context); // Go back to home
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      textStyle: const TextStyle(fontSize: 18),
-                    ),
-                    child: const Text('ANNULLA'),
+                    onPressed: _isEditMode ? _orderDrugs : null,
+                    child: Text('ORDINA', textScaler: TextScaler.linear(textScaler)),
                   ),
                 ),
               ],
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (String value) {
-                final appProvider = Provider.of<AppProvider>(context, listen: false);
-                if (!appProvider.isLoggedIn) {
-                  CustomSnackBar.show(context, 'Accedi per accedere al menu.');
-                  return;
-                }
-                switch (value) {
-                  case 'cronologia':
-                    Navigator.pushNamed(context, '/cronologia');
-                    break;
-                  case 'farmaci':
-                    // Already on farmaci screen
-                    break;
-                  case 'appuntamenti':
-                    Navigator.pushNamed(context, '/appuntamenti');
-                    break;
-                  case 'impostazioni':
-                    Navigator.pushNamed(context, '/impostazioni');
-                    break;
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'cronologia',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Cronologia' : '⦿ Cronologia (dis.)'),
-                ),
-                PopupMenuItem<String>(
-                  value: 'farmaci',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Farmaci' : '⦿ Farmaci (dis.)'),
-                ),
-                PopupMenuItem<String>(
-                  value: 'appuntamenti',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Appuntamenti' : '⦿ Appuntamenti (dis.)'),
-                ),
-                PopupMenuItem<String>(
-                  value: 'impostazioni',
-                  enabled: Provider.of<AppProvider>(context).isLoggedIn,
-                  child: Text(Provider.of<AppProvider>(context).isLoggedIn ? 'Impostazioni' : '⦿ Impostazioni (dis.)'),
-                ),
-              ],
-            ),
+            )
           ],
         ),
       ),
