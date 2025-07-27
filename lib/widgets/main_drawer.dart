@@ -1,140 +1,122 @@
+// lib/widgets/main_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:seg_medico/providers/app_provider.dart';
-import 'package:seg_medico/widgets/login_dialog.dart';
-import 'package:seg_medico/widgets/profile_selection_dialog.dart';
-
+import 'package:seg_medico/widgets/login_dialog.dart'; // Per il dialogo di login
 
 class MainDrawer extends StatelessWidget {
-  const MainDrawer({Key? key}) : super(key: key);
-
-  void _showLoginPrompt(BuildContext context) {
-    Navigator.pop(context); // Chiude il drawer prima
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Devi effettuare l\'accesso per vedere questa sezione.'),
-        action: SnackBarAction(
-          label: 'ACCEDI',
-          onPressed: () {
-            showDialog(
-              context: context,
-              builder: (_) => const LoginDialog(),
-            );
-          },
-        ),
-      ),
-    );
-  }
+  const MainDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
     final appProvider = Provider.of<AppProvider>(context);
-    final textScaler = appProvider.fontSizeMultiplier;
-    final profile = appProvider.currentProfile;
+    final profile = appProvider.selectedProfile;
 
     return Drawer(
-      child: Column(
+      child: ListView(
+        padding: EdgeInsets.zero,
         children: <Widget>[
-          UserAccountsDrawerHeader(
-            accountName: Text(
-              profile?.name ?? 'Nessun profilo',
-              style: TextStyle(fontSize: 16 * textScaler, fontWeight: FontWeight.bold),
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
             ),
-            accountEmail: Text(
-              profile?.codFis ?? 'Seleziona un profilo',
-              style: TextStyle(fontSize: 14 * textScaler),
-            ),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
-              child: Text(
-                profile?.name.substring(0, 1).toUpperCase() ?? 'P',
-                style: TextStyle(fontSize: 40.0 * textScaler, color: Theme.of(context).primaryColor),
-              ),
-            ),
-            otherAccountsPictures: [
-              IconButton(
-                icon: const Icon(Icons.manage_accounts, color: Colors.white),
-                tooltip: 'Gestisci Profili',
-                onPressed: () {
-                  Navigator.pop(context);
-                  showDialog(context: context, builder: (_) => const ProfileSelectionDialog());
-                },
-              )
-            ],
-          ),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildDrawerItem(
-                  context: context,
-                  icon: Icons.home,
-                  text: 'Home',
-                  route: '/home',
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    profile?.nome?.substring(0, 1).toUpperCase() ?? 'P',
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue),
+                  ),
                 ),
-                _buildDrawerItem(
-                  context: context,
-                  icon: Icons.history,
-                  text: 'Cronologia',
-                  route: '/cronologia',
-                  requiresLogin: true,
+                const SizedBox(height: 10),
+                Text(
+                  profile?.nome ?? 'Nessun profilo',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
                 ),
-                _buildDrawerItem(
-                  context: context,
-                  icon: Icons.medical_services,
-                  text: 'Farmaci',
-                  route: '/farmaci',
-                  requiresLogin: true,
-                ),
-                _buildDrawerItem(
-                  context: context,
-                  icon: Icons.calendar_today,
-                  text: 'Appuntamenti',
-                  route: '/appuntamenti',
-                  requiresLogin: true,
-                ),
-                 const Divider(),
-                _buildDrawerItem(
-                  context: context,
-                  icon: Icons.settings,
-                  text: 'Impostazioni',
-                  route: '/settings',
+                Text(
+                  profile?.cellulare ?? '',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
           ),
+          ListTile(
+            leading: const Icon(Icons.login),
+            title: Text(appProvider.isLoggedIn ? 'Logout' : 'Login'),
+            onTap: () {
+              Navigator.of(context).pop(); // Chiudi il drawer
+              if (appProvider.isLoggedIn) {
+                appProvider.logout();
+                // refreshAppointments() non è più necessario qui
+              } else {
+                if (appProvider.selectedProfile != null) {
+                  showDialog(
+                    context: context,
+                    builder: (_) => LoginDialog(
+                      profile: appProvider.selectedProfile!, // Passa il profilo
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Seleziona un profilo prima di fare il login')),
+                  );
+                }
+              }
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('Cronologia'),
+            onTap: () {
+              Navigator.pop(context);
+              if (appProvider.isLoggedIn) {
+                Navigator.pushNamed(context, '/cronologia');
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Accedi per vedere la cronologia completa.')),
+                );
+              }
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.medication),
+            title: const Text('Farmaci'),
+            onTap: appProvider.isLoggedIn
+                ? () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/farmaci');
+                  }
+                : null, // Disabilita se non loggato
+          ),
+          ListTile(
+            leading: const Icon(Icons.calendar_today),
+            title: const Text('Appuntamenti'),
+            onTap: appProvider.isLoggedIn
+                ? () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/appuntamenti');
+                  }
+                : null, // Disabilita se non loggato
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Impostazioni'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/settings');
+            },
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required BuildContext context,
-    required IconData icon,
-    required String text,
-    required String route,
-    bool requiresLogin = false,
-  }) {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final textScaler = appProvider.fontSizeMultiplier;
-    final isEnabled = !requiresLogin || appProvider.isLoggedIn;
-    final currentRoute = ModalRoute.of(context)?.settings.name;
-
-    return ListTile(
-      leading: Icon(icon, color: isEnabled ? null : Colors.grey),
-      title: Text(text, textScaler: TextScaler.linear(textScaler)),
-      enabled: isEnabled,
-      selected: currentRoute == route,
-      onTap: () {
-        if (isEnabled) {
-           Navigator.pop(context); // Chiude il drawer
-           if(currentRoute != route) {
-             Navigator.pushNamed(context, route);
-           }
-        } else {
-          _showLoginPrompt(context);
-        }
-      },
     );
   }
 }

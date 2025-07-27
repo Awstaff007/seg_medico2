@@ -1,0 +1,288 @@
+ERROR: lib/providers/app_provider.dart:255:1: Error: Expected a declaration, but got '}'.
+ERROR: }
+ERROR: ^
+ERROR: lib/screens/settings_screen.dart:136:29: Error: Type 'ThemeProvider' not found.
+ERROR:   Widget _buildThemeSetting(ThemeProvider themeProvider) {
+ERROR:                             ^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:64:77: Error: The value 'null' can't be returned from a function with return type 'Profilo' because 'Profilo' is not nullable.
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR:     _selectedProfile = _profili.firstWhere((p) => p.id == id, orElse: () => null);
+ERROR:                                                                             ^
+ERROR: lib/providers/app_provider.dart:84:34: Error: Undefined name '_profili'.
+ERROR:     if (lastProfileId != null && _profili.any((p) => p.id == lastProfileId)) {
+ERROR:                                  ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:85:26: Error: Undefined name '_profili'.
+ERROR:       _selectedProfile = _profili.firstWhere((p) => p.id == lastProfileId);
+ERROR:                          ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:85:7: Error: Setter not found: '_selectedProfile'.
+ERROR:       _selectedProfile = _profili.firstWhere((p) => p.id == lastProfileId);
+ERROR:       ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:93:64: Error: Undefined name '_selectedProfile'.
+ERROR:     final token = await _secureStorage.read(key: 'auth_token_${_selectedProfile!.id}');
+ERROR:                                                                ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:93:25: Error: Undefined name '_secureStorage'.
+ERROR:     final token = await _secureStorage.read(key: 'auth_token_${_selectedProfile!.id}');
+ERROR:                         ^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:109:5: Error: Setter not found: '_profili'.
+ERROR:     _profili = profiliString.map((s) => Profilo.fromJson(s)).toList();
+ERROR:     ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:110:5: Error: Method not found: 'notifyListeners'.
+ERROR:     notifyListeners();
+ERROR:     ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:116:27: Error: Undefined name '_profili'.
+ERROR:     final profiliString = _profili.map((p) => p.toJson()).toList();
+ERROR:                           ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:133:5: Error: Setter not found: '_isLoading'.
+ERROR:     _isLoading = loading;
+ERROR:     ^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:134:5: Error: Setter not found: '_errorMessage'.
+ERROR:     _errorMessage = error;
+ERROR:     ^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:135:5: Error: Method not found: 'notifyListeners'.
+ERROR:     notifyListeners();
+ERROR:     ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:140:9: Error: Undefined name '_profili'.
+ERROR:     if (_profili.any((p) => p.id == profilo.id)) {
+ERROR:         ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:143:5: Error: Undefined name '_profili'.
+ERROR:     _profili.add(profilo);
+ERROR:     ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:149:19: Error: Undefined name '_profili'.
+ERROR:     final index = _profili.indexWhere((p) => p.id == updatedProfile.id);
+ERROR:                   ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:151:7: Error: Undefined name '_profili'.
+ERROR:       _profili[index] = updatedProfile;
+ERROR:       ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:153:7: Error: Method not found: 'notifyListeners'.
+ERROR:       notifyListeners();
+ERROR:       ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:158:5: Error: Undefined name '_profili'.
+ERROR:     _profili.removeWhere((p) => p.id == profilo.id);
+ERROR:     ^^^^^^^^
+ERROR: lib/providers/app_provider.dart:160:9: Error: Undefined name '_selectedProfile'.
+ERROR:     if (_selectedProfile?.id == profilo.id) {
+ERROR:         ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:161:7: Error: Setter not found: '_selectedProfile'.
+ERROR:       _selectedProfile = null;
+ERROR:       ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:164:5: Error: Method not found: 'notifyListeners'.
+ERROR:     notifyListeners();
+ERROR:     ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:168:9: Error: Undefined name '_selectedProfile'.
+ERROR:     if (_selectedProfile != profile) {
+ERROR:         ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:169:7: Error: Setter not found: '_selectedProfile'.
+ERROR:       _selectedProfile = profile;
+ERROR:       ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:175:7: Error: Method not found: 'notifyListeners'.
+ERROR:       notifyListeners();
+ERROR:       ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:181:9: Error: Undefined name '_selectedProfile'.
+ERROR:     if (_selectedProfile == null) return;
+ERROR:         ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:184:36: Error: Undefined name '_selectedProfile'.
+ERROR:       await _apiService.requestOtp(_selectedProfile!.id, _selectedProfile!.cellulare);
+ERROR:                                    ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:184:58: Error: Undefined name '_selectedProfile'.
+ERROR:       await _apiService.requestOtp(_selectedProfile!.id, _selectedProfile!.cellulare);
+ERROR:                                                          ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:184:13: Error: Undefined name '_apiService'.
+ERROR:       await _apiService.requestOtp(_selectedProfile!.id, _selectedProfile!.cellulare);
+ERROR:             ^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:193:9: Error: Undefined name '_selectedProfile'.
+ERROR:     if (_selectedProfile == null) return;
+ERROR:         ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:196:45: Error: Undefined name '_selectedProfile'.
+ERROR:       final token = await _apiService.login(_selectedProfile!.id, _selectedProfile!.cellulare, code);
+ERROR:                                             ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:196:67: Error: Undefined name '_selectedProfile'.
+ERROR:       final token = await _apiService.login(_selectedProfile!.id, _selectedProfile!.cellulare, code);
+ERROR:                                                                   ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:196:27: Error: Undefined name '_apiService'.
+ERROR:       final token = await _apiService.login(_selectedProfile!.id, _selectedProfile!.cellulare, code);
+ERROR:                           ^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:206:7: Error: Setter not found: '_authToken'.
+ERROR:       _authToken = token;
+ERROR:       ^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:207:53: Error: Undefined name '_selectedProfile'.
+ERROR:       await _secureStorage.write(key: 'auth_token_${_selectedProfile!.id}', value: token);
+ERROR:                                                     ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:207:13: Error: Undefined name '_secureStorage'.
+ERROR:       await _secureStorage.write(key: 'auth_token_${_selectedProfile!.id}', value: token);
+ERROR:             ^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:211:11: Error: Undefined name '_apiService'.
+ERROR:           _apiService.getPatientInfo(token),
+ERROR:           ^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:212:11: Error: Undefined name '_apiService'.
+ERROR:           _apiService.getAppointments(token),
+ERROR:           ^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:215:7: Error: Setter not found: '_patientInfo'.
+ERROR:       _patientInfo = results[0] as Map<String, dynamic>;
+ERROR:       ^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:216:7: Error: Setter not found: '_appointments'.
+ERROR:       _appointments = results[1] as List<dynamic>;
+ERROR:       ^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:218:7: Error: Method not found: 'notifyListeners'.
+ERROR:       notifyListeners();
+ERROR:       ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:210:41: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'Iterable<Future<dynamic>>'.
+ERROR:  - 'List' is from 'dart:core'.
+ERROR:  - 'Iterable' is from 'dart:core'.
+ERROR:  - 'Future' is from 'dart:async'.
+ERROR:       final results = await Future.wait([
+ERROR:                                         ^
+ERROR: lib/providers/app_provider.dart:222:9: Error: Undefined name '_selectedProfile'.
+ERROR:     if (_selectedProfile != null) {
+ERROR:         ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:223:54: Error: Undefined name '_selectedProfile'.
+ERROR:       await _secureStorage.delete(key: 'auth_token_${_selectedProfile!.id}');
+ERROR:                                                      ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:223:13: Error: Undefined name '_secureStorage'.
+ERROR:       await _secureStorage.delete(key: 'auth_token_${_selectedProfile!.id}');
+ERROR:             ^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:225:5: Error: Setter not found: '_authToken'.
+ERROR:     _authToken = null;
+ERROR:     ^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:226:5: Error: Setter not found: '_patientInfo'.
+ERROR:     _patientInfo = null;
+ERROR:     ^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:227:5: Error: Setter not found: '_appointments'.
+ERROR:     _appointments = [];
+ERROR:     ^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:228:5: Error: Method not found: 'notifyListeners'.
+ERROR:     notifyListeners();
+ERROR:     ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:233:12: Error: Undefined name 'isLoggedIn'.
+ERROR:       if (!isLoggedIn) return;
+ERROR:            ^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:236:62: Error: Undefined name '_authToken'.
+ERROR:           await _apiService.cancelAppointment(appointmentId, _authToken!);
+ERROR:                                                              ^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:236:17: Error: Undefined name '_apiService'.
+ERROR:           await _apiService.cancelAppointment(appointmentId, _authToken!);
+ERROR:                 ^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:237:11: Error: Undefined name '_appointments'.
+ERROR:           _appointments.removeWhere((app) => app['id'] == appointmentId);
+ERROR:           ^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:247:5: Error: Setter not found: '_themeMode'.
+ERROR:     _themeMode = mode;
+ERROR:     ^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:248:5: Error: Method not found: 'notifyListeners'.
+ERROR:     notifyListeners();
+ERROR:     ^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:252:5: Error: Setter not found: '_textScaleFactor'.
+ERROR:     _textScaleFactor = scale;
+ERROR:     ^^^^^^^^^^^^^^^^
+ERROR: lib/providers/app_provider.dart:253:5: Error: Method not found: 'notifyListeners'.
+ERROR:     notifyListeners();
+ERROR:     ^^^^^^^^^^^^^^^
+ERROR: lib/screens/home_screen.dart:25:37: Error: 'Profilo' isn't a type.
+ERROR:               child: DropdownButton<Profilo>(
+ERROR:                                     ^^^^^^^
+ERROR: lib/screens/home_screen.dart:29:43: Error: 'Profilo' isn't a type.
+ERROR:                   return DropdownMenuItem<Profilo>(value: p, child: Text(p.nome));
+ERROR:                                           ^^^^^^^
+ERROR: lib/screens/home_screen.dart:39:83: Error: Couldn't find constructor 'ProfileManagementScreen'.
+ERROR:                   Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileManagementScreen()));
+ERROR:                                                                                   ^^^^^^^^^^^^^^^^^^^^^^^
+ERROR: lib/screens/home_screen.dart:31:47: Error: The method 'selectProfile' isn't defined for the class 'AppProvider'.
+ERROR:  - 'AppProvider' is from 'package:seg_medico/providers/app_provider.dart' ('lib/providers/app_provider.dart').
+ERROR: Try correcting the name to the name of an existing method, or defining a method named 'selectProfile'.
+ERROR:                 onChanged: (p) => appProvider.selectProfile(p),
+ERROR:                                               ^^^^^^^^^^^^^
+ERROR: lib/screens/home_screen.dart:46:48: Error: The method 'logout' isn't defined for the class 'AppProvider'.
+ERROR:  - 'AppProvider' is from 'package:seg_medico/providers/app_provider.dart' ('lib/providers/app_provider.dart').
+ERROR: Try correcting the name to the name of an existing method, or defining a method named 'logout'.
+ERROR:                   onPressed: () => appProvider.logout(),
+ERROR:                                                ^^^^^^
+ERROR: lib/screens/home_screen.dart:115:30: Error: The method 'cancelAppointment' isn't defined for the class 'AppProvider'.
+ERROR:  - 'AppProvider' is from 'package:seg_medico/providers/app_provider.dart' ('lib/providers/app_provider.dart').
+ERROR: Try correcting the name to the name of an existing method, or defining a method named 'cancelAppointment'.
+ERROR:               await provider.cancelAppointment(appointment['id']);
+ERROR:                              ^^^^^^^^^^^^^^^^^
+ERROR: lib/screens/home_screen.dart:145:82: Error: Couldn't find constructor 'MedicinesScreen'.
+ERROR:                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MedicinesScreen()));
+ERROR:                                                                                  ^^^^^^^^^^^^^^^
+ERROR: lib/screens/home_screen.dart:156:82: Error: Couldn't find constructor 'AppointmentsScreen'.
+ERROR:                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AppointmentsScreen()));
+ERROR:                                                                                  ^^^^^^^^^^^^^^^^^^
+ERROR: lib/widgets/login_dialog.dart:52:62: Error: The method 'login' isn't defined for the class 'AppProvider'.
+ERROR:  - 'AppProvider' is from 'package:seg_medico/providers/app_provider.dart' ('lib/providers/app_provider.dart').
+ERROR: Try correcting the name to the name of an existing method, or defining a method named 'login'.
+ERROR:       await Provider.of<AppProvider>(context, listen: false).login(_codeController.text);
+ERROR:                                                              ^^^^^
+ERROR: lib/widgets/login_dialog.dart:68:36: Error: The getter 'name' isn't defined for the class 'Profilo'.
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR: Try correcting the name to the name of an existing getter, or defining a getter or field named 'name'.
+ERROR:         title: Text(widget.profile.name),
+ERROR:                                    ^^^^
+ERROR: lib/widgets/login_dialog.dart:88:42: Error: The getter 'phone' isn't defined for the class 'Profilo'.
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR: Try correcting the name to the name of an existing getter, or defining a getter or field named 'phone'.
+ERROR:         Text("Telefono: ${widget.profile.phone}"),
+ERROR:                                          ^^^^^
+ERROR: lib/widgets/app_drawer.dart:43:93: Error: Couldn't find constructor 'HistoryScreen'.
+ERROR:             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HistoryScreen())),
+ERROR:                                                                                             ^^^^^^^^^^^^^
+ERROR: lib/widgets/app_drawer.dart:50:93: Error: Couldn't find constructor 'MedicinesScreen'.
+ERROR:             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MedicinesScreen())),
+ERROR:                                                                                             ^^^^^^^^^^^^^^^
+ERROR: lib/widgets/app_drawer.dart:57:93: Error: Couldn't find constructor 'AppointmentsScreen'.
+ERROR:             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AppointmentsScreen())),
+ERROR:                                                                                             ^^^^^^^^^^^^^^^^^^
+ERROR: lib/screens/settings_screen.dart:21:58: Error: The getter 'settings' isn't defined for the class 'AppProvider'.
+ERROR:  - 'AppProvider' is from 'package:seg_medico/providers/app_provider.dart' ('lib/providers/app_provider.dart').
+ERROR: Try correcting the name to the name of an existing getter, or defining a getter or field named 'settings'.
+ERROR:         Provider.of<AppProvider>(context, listen: false).settings.toJson());
+ERROR:                                                          ^^^^^^^^
+ERROR: lib/screens/settings_screen.dart:25:54: Error: The method 'updateSettings' isn't defined for the class 'AppProvider'.
+ERROR:  - 'AppProvider' is from 'package:seg_medico/providers/app_provider.dart' ('lib/providers/app_provider.dart').
+ERROR: Try correcting the name to the name of an existing method, or defining a method named 'updateSettings'.
+ERROR:     Provider.of<AppProvider>(context, listen: false).updateSettings(_currentSettings);
+ERROR:                                                      ^^^^^^^^^^^^^^
+ERROR: lib/screens/settings_screen.dart:44:39: Error: 'ThemeProvider' isn't a type.
+ERROR:     final themeProvider = Provider.of<ThemeProvider>(context);
+ERROR:                                       ^^^^^^^^^^^^^
+ERROR: lib/screens/settings_screen.dart:136:29: Error: 'ThemeProvider' isn't a type.
+ERROR:   Widget _buildThemeSetting(ThemeProvider themeProvider) {
+ERROR:                             ^^^^^^^^^^^^^
+ERROR: lib/widgets/main_drawer.dart:21:48: Error: Required named parameter 'profile' must be provided.
+ERROR:               builder: (_) => const LoginDialog(),
+ERROR:                                                ^
+ERROR: lib/widgets/login_dialog.dart:11:9: Context: Found this candidate, but the arguments don't match.
+ERROR:   const LoginDialog({super.key, required this.profile});
+ERROR:         ^^^^^^^^^^^
+ERROR: lib/widgets/main_drawer.dart:40:24: Error: The getter 'name' isn't defined for the class 'Profilo'.
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR: Try correcting the name to the name of an existing getter, or defining a getter or field named 'name'.
+ERROR:               profile?.name ?? 'Nessun profilo',
+ERROR:                        ^^^^
+ERROR: lib/widgets/main_drawer.dart:50:26: Error: The getter 'name' isn't defined for the class 'Profilo'.
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR: Try correcting the name to the name of an existing getter, or defining a getter or field named 'name'.
+ERROR:                 profile?.name.substring(0, 1).toUpperCase() ?? 'P',
+ERROR:                          ^^^^
+ERROR: lib/widgets/profile_selection_dialog.dart:63:36: Error: The argument type 'Profile' can't be assigned to the parameter type 'Profilo'.
+ERROR:  - 'Profile' is from 'package:seg_medico/models/models.dart' ('lib/models/models.dart').
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR:       await appProvider.addProfile(profile);
+ERROR:                                    ^
+ERROR: lib/widgets/profile_selection_dialog.dart:63:25: Error: This expression has type 'void' and can't be used.
+ERROR:       await appProvider.addProfile(profile);
+ERROR:                         ^
+ERROR: lib/widgets/profile_selection_dialog.dart:70:23: Error: This expression has type 'void' and can't be used.
+ERROR:     await appProvider.deleteProfile(profileId);
+ERROR:                       ^
+ERROR: lib/widgets/profile_selection_dialog.dart:131:43: Error: The getter 'name' isn't defined for the class 'Profilo'.
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR: Try correcting the name to the name of an existing getter, or defining a getter or field named 'name'.
+ERROR:                       title: Text(profile.name),
+ERROR:                                           ^^^^
+ERROR: lib/widgets/profile_selection_dialog.dart:138:59: Error: The argument type 'Profilo' can't be assigned to the parameter type 'Profile'.
+ERROR:  - 'Profilo' is from 'package:seg_medico/models/profilo.dart' ('lib/models/profilo.dart').
+ERROR:  - 'Profile' is from 'package:seg_medico/models/models.dart' ('lib/models/models.dart').
+ERROR:                             onPressed: () => _editProfile(profile),
+ERROR:                                                           ^
+ERROR: Target kernel_snapshot_program failed: Exception
+Building Linux application...                                           
+Error: Build process failed
