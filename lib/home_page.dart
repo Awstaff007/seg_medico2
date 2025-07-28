@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:seg_medico2/data/database.dart' hide Column;
-import 'package:drift/drift.dart';
+import 'package:seg_medico2/data/database.dart'; // già corretto
+import 'package:drift/drift.dart' hide Column;   // nasconde Column da Drift
+
 
 
 

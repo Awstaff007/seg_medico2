@@ -1,39 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:seg_medico2/data/database.dart';
 import 'package:seg_medico2/auth/auth_service.dart';
 import 'package:seg_medico2/auth/auth_wrapper.dart';
-import 'package:seg_medico2/data/database.dart';
+import 'package:drift/drift.dart'; // per usare Value
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final db = AppDatabase();
+  final authService = AuthService(db);
+
+  // Inserisce un utente demo all'avvio se non esiste
+  final existingUser = await db.getUser('demo');
+  if (existingUser == null) {
+    await db.createUser(UsersCompanion(name: Value('demo')));
+  }
+
+  // Autenticazione automatica dell'utente demo
+  await authService.signIn('demo', '');
+
+  runApp(
+    MultiProvider(
+      providers: [
+        Provider.value(value: db),
+        ChangeNotifierProvider.value(value: authService),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Fornisce l'istanza del database e del servizio di autenticazione
-    // all'intera applicazione tramite Provider.
-    return MultiProvider(
-      providers: [
-        Provider<AppDatabase>(
-          create: (_) => AppDatabase(),
-          dispose: (context, db) => db.close(),
-        ),
-        ProxyProvider<AppDatabase, AuthService>(
-          update: (context, db, previous) => AuthService(db),
-        ),
-      ],
-      child: MaterialApp(
-        title: 'Assistente Medico',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-        ),
-        // AuthWrapper gestirà se mostrare la pagina di Login o la HomePage.
-        home: const AuthWrapper(),
+    return MaterialApp(
+      title: 'Seg Medico',
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
+      home: const AuthWrapper(),
     );
   }
 }
