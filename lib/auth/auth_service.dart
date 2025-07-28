@@ -1,51 +1,56 @@
-import 'package:flutter/foundation.dart';
-import 'package:seg_medico2/data/database.dart';
-import 'package:drift/drift.dart'; // per usare Value
+import 'package:flutter/foundation.dart'; // Per ValueNotifier
+import 'package:seg_medico2/data/database.dart'; // Per AppDatabase e UsersCompanion
+import 'package:drift/drift.dart' as d; // Per d.Value
 
-class AuthService extends ChangeNotifier {
+class AuthService {
   final AppDatabase database;
-  final ValueNotifier<String?> currentUserIdNotifier = ValueNotifier(null);
+  // Notifier per l'ID utente corrente. Emette null se non loggato, altrimenti l'ID String.
+  final ValueNotifier<String?> currentUserIdNotifier = ValueNotifier<String?>(null);
 
   AuthService(this.database);
 
-  String? get currentUserId => currentUserIdNotifier.value;
+  // Metodo per simulare il login o la creazione di un utente anonimo
+  Future<void> signInAnonymously() async {
+    try {
+      // Prova a ottenere un utente esistente (es. se l'ID è persistente localmente)
+      // Per semplicità, qui creiamo sempre un nuovo utente se non c'è un ID corrente.
+      // In un'app reale, potresti leggere un ID salvato o usare un sistema di autenticazione.
 
-  Future<User?> signIn(String username, String password) async {
-    final user = await database.getUser(username);
-    if (user != null) {
-      currentUserIdNotifier.value = user.id.toString();
-      notifyListeners(); // notifico i consumer (es. AuthWrapper)
-      return user;
-    } else {
-      return null;
-    }
-  }
+      String? userId = currentUserIdNotifier.value;
 
-  Future<void> signOut() async {
-    currentUserIdNotifier.value = null;
-    notifyListeners(); // notifico che non c'è più utente
-  }
+      if (userId == null) {
+        // Genera un nuovo ID utente (es. UUID)
+        userId = DateTime.now().millisecondsSinceEpoch.toString(); // Semplice ID basato sul timestamp
+                                                                  // In produzione usa un UUID reale: import 'package:uuid/uuid.dart'; var uuid = Uuid(); userId = uuid.v4();
 
-  Future<User?> createUser(String username, String password) async {
-    final existingUser = await database.getUser(username);
-    if (existingUser != null) {
-      return null;
-    }
+        // Crea un nuovo utente nel database
+        final newUserCompanion = d.UsersCompanion.insert(
+          id: userId, // L'ID è ora una String
+          name: 'Utente Anonimo $userId', // Nome di esempio
+          email: d.Value(null), // Email opzionale
+        );
+        await database.createUser(newUserCompanion); // Questo metodo ora restituisce Future<void> o Future<int>
 
-    final newUserCompanion = UsersCompanion(
-      name: Value(username),
-      // Se aggiungi password nel database: password: Value(password),
-    );
-
-    final newUserId = await database.createUser(newUserCompanion);
-    if (newUserId > 0) {
-      final newUser = await database.getUser(username);
-      if (newUser != null) {
-        currentUserIdNotifier.value = newUser.id.toString();
-        notifyListeners(); // notifico accesso del nuovo utente
-        return newUser;
+        // Aggiorna il notifier con il nuovo ID utente
+        currentUserIdNotifier.value = userId;
+        print('Utente anonimo creato e loggato con ID: $userId');
+      } else {
+        print('Utente già loggato con ID: $userId');
       }
+    } catch (e) {
+      print('Errore durante il login anonimo: $e');
+      currentUserIdNotifier.value = null; // Assicurati che l'ID sia null in caso di errore
     }
-    return null;
+  }
+
+  // Metodo per il logout
+  void signOut() {
+    currentUserIdNotifier.value = null;
+    print('Utente disconnesso.');
+  }
+
+  // Metodo per ottenere l'ID utente corrente (sincrono, usa il notifier per gli aggiornamenti)
+  String? getCurrentUserId() {
+    return currentUserIdNotifier.value;
   }
 }

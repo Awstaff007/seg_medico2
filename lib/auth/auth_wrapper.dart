@@ -11,6 +11,9 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
+    // Assicurati che AppDatabase sia il tipo corretto per il tuo database.
+    // Se stai usando FirebaseFirestore, il tipo potrebbe essere 'FirebaseFirestore'
+    // o un wrapper attorno ad esso. Ho mantenuto 'AppDatabase' come nel tuo codice.
     final db = Provider.of<AppDatabase>(context, listen: false);
 
     // ValueListenableBuilder ascolta i cambiamenti nell'ID utente
@@ -23,8 +26,9 @@ class AuthWrapper extends StatelessWidget {
           return const LoginPage();
         } else {
           // Se l'utente è loggato, mostra la HomePage.
-          // CORREZIONE: Converte l'ID da String a int come richiesto da HomePage.
-          return HomePage(db: db, userId: int.parse(userId));
+          // CORREZIONE: Passa direttamente 'userId' come String, senza 'int.parse()'.
+          // La HomePage si aspetta una String per userId.
+          return HomePage(db: db, userId: userId);
         }
       },
     );

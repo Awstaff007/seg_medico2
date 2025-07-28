@@ -1,134 +1,151 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:seg_medico2/data/database.dart'; // già corretto
-import 'package:drift/drift.dart' hide Column;   // nasconde Column da Drift
 
+// La pagina iniziale dell'applicazione.
+class HomePage extends StatelessWidget {
+  // Aggiunti i parametri db e userId al costruttore.
+  // Ho usato 'dynamic' per 'db' perché non conosco il tipo esatto del tuo database (es. FirebaseFirestore).
+  // Assicurati di usare il tipo corretto se lo conosci.
+  final dynamic db;
+  final String userId;
 
-
-
-class HomePage extends StatefulWidget {
-  final AppDatabase db;
-  final int userId;
-
-  const HomePage({Key? key, required this.db, required this.userId}) : super(key: key);
-
-  @override
-  _HomePageState createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  Appointment? _nextAppointment;
-  Medication? _nextMedication;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadInitialData();
-  }
-
-  Future<void> _loadInitialData() async {
-    final allAppointments = await widget.db.getAllAppointmentsForUser(widget.userId);
-    final allMedications = await widget.db.getAllMedicationsForUser(widget.userId);
-
-    setState(() {
-      _nextAppointment = allAppointments.isNotEmpty ? allAppointments.first : null;
-      _nextMedication = allMedications.isNotEmpty ? allMedications.first : null;
-    });
-  }
-
-  Future<void> _completeAppointment() async {
-    if (_nextAppointment != null) {
-      // CORREZIONE: 'Value' ora è riconosciuto
-      await widget.db.updateAppointment(AppointmentsCompanion(
-        id: Value(_nextAppointment!.id),
-        isCompleted: const Value(true),
-      ));
-      await widget.db.addHistoryEntry(
-        MedicalHistoryCompanion(
-          userId: Value(widget.userId),
-          eventType: const Value('Appuntamento'),
-          details: Value('Appuntamento completato: ${_nextAppointment!.doctorName}'),
-          timestamp: Value(DateTime.now()),
-        ),
-      );
-      _loadInitialData();
-    }
-  }
-
-  Future<void> _takeMedication() async {
-    if (_nextMedication != null) {
-      await widget.db.updateMedication(MedicationsCompanion(
-        id: Value(_nextMedication!.id),
-        nextDose: Value(_nextMedication!.nextDose?.add(const Duration(days: 1))),
-      ));
-      await widget.db.addHistoryEntry(
-        MedicalHistoryCompanion(
-          userId: Value(widget.userId),
-          eventType: const Value('Farmaco'),
-          details: Value('Farmaco assunto: ${_nextMedication!.name}'),
-          timestamp: Value(DateTime.now()),
-        ),
-      );
-      _loadInitialData();
-    }
-  }
+  const HomePage({super.key, required this.db, required this.userId});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Dashboard Principale')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      appBar: AppBar(
+        title: const Text('Benvenuto', style: TextStyle(color: Colors.white)), // Titolo della barra dell'app
+        backgroundColor: Colors.blueAccent, // Colore della barra dell'app
+        iconTheme: const IconThemeData(color: Colors.white), // Colore dell'icona (per il drawer)
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(20), // Bordi arrotondati per la barra dell'app
+          ),
+        ),
+      ),
+      // Il Drawer è il menu laterale che si apre scorrendo da sinistra.
+      drawer: Drawer(
+        // Aggiunto un bordo arrotondato al Drawer per un look più moderno
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topRight: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
+        child: ListView(
+          padding: EdgeInsets.zero, // Rimuove il padding predefinito
+          children: <Widget>[
+            // Header del Drawer, può contenere il nome dell'app o un'immagine.
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.blueAccent,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'Segretario Medico',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Menu Principale',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Elemento del menu per "Appuntamenti".
+            ListTile(
+              leading: const Icon(Icons.calendar_today, color: Colors.blue), // Icona più evidente
+              title: const Text('Appuntamenti', style: TextStyle(fontSize: 18, color: Colors.blueGrey)), // Testo
+              onTap: () {
+                // Chiude il drawer e naviga alla pagina Appuntamenti.
+                Navigator.pop(context); // Chiude il drawer
+                Navigator.pushNamed(context, '/appuntamenti'); // Naviga alla rotta
+              },
+            ),
+            // Elemento del menu per "Farmaci".
+            ListTile(
+              leading: const Icon(Icons.medical_services, color: Colors.green), // Icona più evidente
+              title: const Text('Farmaci', style: TextStyle(fontSize: 18, color: Colors.blueGrey)), // Testo
+              onTap: () {
+                // Chiude il drawer e naviga alla pagina Farmaci.
+                Navigator.pop(context); // Chiude il drawer
+                Navigator.pushNamed(context, '/farmaci'); // Naviga alla rotta
+              },
+            ),
+            // Puoi aggiungere altri elementi del menu qui.
+            ListTile(
+              leading: const Icon(Icons.person, color: Colors.orange),
+              title: const Text('Pazienti', style: TextStyle(fontSize: 18, color: Colors.blueGrey)),
+              onTap: () {
+                Navigator.pop(context);
+                // Navigator.pushNamed(context, '/pazienti'); // Crea questa rotta e pagina nel main.dart
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_open, color: Colors.purple),
+              title: const Text('Cartella Clinica', style: TextStyle(fontSize: 18, color: Colors.blueGrey)),
+              onTap: () {
+                Navigator.pop(context);
+                // Navigator.pushNamed(context, '/cartella_clinica'); // Crea questa rotta e pagina nel main.dart
+              },
+            ),
+            const Divider(), // Linea separatrice
+            ListTile(
+              leading: const Icon(Icons.settings, color: Colors.grey),
+              title: const Text('Impostazioni', style: TextStyle(fontSize: 18, color: Colors.blueGrey)),
+              onTap: () {
+                Navigator.pop(context);
+                // Navigator.pushNamed(context, '/impostazioni'); // Crea questa rotta e pagina nel main.dart
+              },
+            ),
+          ],
+        ),
+      ),
+      body: Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Prossimo Appuntamento', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            if (_nextAppointment != null)
-              Card(
-                child: ListTile(
-                  title: Text(_nextAppointment!.doctorName),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Data: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextAppointment!.appointmentDate)}'),
-                      if (_nextAppointment!.notes != null && _nextAppointment!.notes!.isNotEmpty)
-                        Text('Note: ${_nextAppointment!.notes}'),
-                    ],
-                  ),
-                  trailing: ElevatedButton(
-                    onPressed: _completeAppointment,
-                    child: const Text('Completato'),
-                  ),
-                ),
-              )
-            else
-              const Text('Nessun appuntamento imminente.'),
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            // Immagine di benvenuto o logo.
+            Image.network(
+              'https://placehold.co/150x150/ADD8E6/000000?text=Benvenuto', // Placeholder per immagine
+              errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, size: 100, color: Colors.red),
+            ),
             const SizedBox(height: 20),
-            const Text('Prossimo Farmaco da Assumere', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            if (_nextMedication != null)
-              Card(
-                child: ListTile(
-                  title: Text(_nextMedication!.name),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Dosaggio: ${_nextMedication!.dosage}'),
-                      Text('Frequenza: ${_nextMedication!.frequency}'),
-                      if (_nextMedication!.nextDose != null)
-                         Text('Prossima dose: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextMedication!.nextDose!)}'),
-                    ],
-                  ),
-                  trailing: ElevatedButton(
-                    onPressed: _takeMedication,
-                    child: const Text('Assunto'),
-                  ),
-                ),
-              )
-            else
-              const Text('Nessun farmaco da assumere.'),
+            const Text(
+              'Usa il menu per navigare',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'ID Utente: $userId', // Mostra l'ID utente per debug o informazione
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.black54),
+            ),
+            const Text(
+              'Tocca l\'icona in alto a sinistra per aprire il menu.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
           ],
         ),
       ),
     );
   }
 }
+// RIMOSSE LE CLASSI AppuntamentiPage e FarmaciPage da qui.
+// Ora si trovano nei loro rispettivi file: appointments_page.dart e medications_page.dart.

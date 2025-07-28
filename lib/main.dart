@@ -1,34 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:seg_medico2/data/database.dart';
 import 'package:seg_medico2/auth/auth_service.dart';
 import 'package:seg_medico2/auth/auth_wrapper.dart';
-import 'package:drift/drift.dart'; // per usare Value
+import 'package:seg_medico2/data/database.dart'; // Assicurati che il percorso sia corretto
+import 'package:seg_medico2/appointments_page.dart'; // Importa la pagina Appuntamenti
+import 'package:seg_medico2/medications_page.dart';   // Importa la pagina Farmaci
+import 'package:seg_medico2/home_page.dart';         // Importa la HomePage
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  final db = AppDatabase();
-  final authService = AuthService(db);
-
-  // Inserisce un utente demo all'avvio se non esiste
-  final existingUser = await db.getUser('demo');
-  if (existingUser == null) {
-    await db.createUser(UsersCompanion(name: Value('demo')));
-  }
-
-  // Autenticazione automatica dell'utente demo
-  await authService.signIn('demo', '');
-
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider.value(value: db),
-        ChangeNotifierProvider.value(value: authService),
-      ],
-      child: const MyApp(),
-    ),
-  );
+void main() {
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -36,13 +16,37 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Seg Medico',
-      theme: ThemeData(
-        primarySwatch: Colors.teal,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+    return MultiProvider(
+      providers: [
+        // Provider per AppDatabase - deve essere prima di AuthService
+        Provider<AppDatabase>(
+          create: (_) => AppDatabase(), // Inizializza la tua istanza di database qui
+          dispose: (context, db) => db.close(), // Chiudi il database quando non è più necessario
+        ),
+        // Provider per AuthService - ora riceve l'istanza di AppDatabase
+        Provider<AuthService>(
+          create: (context) => AuthService(Provider.of<AppDatabase>(context, listen: false)),
+        ),
+        // Aggiungi altri provider se ne hai (es. ThemeNotifier)
+      ],
+      child: MaterialApp(
+        title: 'Segretario Medico',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+          fontFamily: 'Inter',
+        ),
+        home: const AuthWrapper(),
+        routes: {
+          '/appuntamenti': (context) => const AppointmentsPage(),
+          '/farmaci': (context) => const MedicationsPage(),
+          // Aggiungi qui le rotte per le altre tue pagine
+          // '/settings': (context) => const SettingsPage(),
+          // '/history': (context) => const HistoryPage(),
+          // '/edit_appointment': (context) => const EditAppointmentPage(),
+          // '/edit_medication': (context) => const EditMedicationPage(),
+        },
       ),
-      home: const AuthWrapper(),
     );
   }
 }

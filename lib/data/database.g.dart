@@ -10,13 +10,12 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
   $UsersTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
       'id', aliasedName, false,
-      hasAutoIncrement: true,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+      additionalChecks:
+          GeneratedColumn.checkTextLength(minTextLength: 1, maxTextLength: 255),
+      type: DriftSqlType.string,
+      requiredDuringInsert: true);
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
@@ -44,6 +43,8 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -65,7 +66,7 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return User(
       id: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       name: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       email: attachedDatabase.typeMapping
@@ -80,14 +81,14 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
 }
 
 class User extends DataClass implements Insertable<User> {
-  final int id;
+  final String id;
   final String name;
   final String? email;
   const User({required this.id, required this.name, this.email});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
+    map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || email != null) {
       map['email'] = Variable<String>(email);
@@ -108,7 +109,7 @@ class User extends DataClass implements Insertable<User> {
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return User(
-      id: serializer.fromJson<int>(json['id']),
+      id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       email: serializer.fromJson<String?>(json['email']),
     );
@@ -117,14 +118,14 @@ class User extends DataClass implements Insertable<User> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
+      'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'email': serializer.toJson<String?>(email),
     };
   }
 
   User copyWith(
-          {int? id,
+          {String? id,
           String? name,
           Value<String?> email = const Value.absent()}) =>
       User(
@@ -162,37 +163,47 @@ class User extends DataClass implements Insertable<User> {
 }
 
 class UsersCompanion extends UpdateCompanion<User> {
-  final Value<int> id;
+  final Value<String> id;
   final Value<String> name;
   final Value<String?> email;
+  final Value<int> rowid;
   const UsersCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.email = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   UsersCompanion.insert({
-    this.id = const Value.absent(),
+    required String id,
     required String name,
     this.email = const Value.absent(),
-  }) : name = Value(name);
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name);
   static Insertable<User> custom({
-    Expression<int>? id,
+    Expression<String>? id,
     Expression<String>? name,
     Expression<String>? email,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (email != null) 'email': email,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   UsersCompanion copyWith(
-      {Value<int>? id, Value<String>? name, Value<String?>? email}) {
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String?>? email,
+      Value<int>? rowid}) {
     return UsersCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       email: email ?? this.email,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -200,13 +211,16 @@ class UsersCompanion extends UpdateCompanion<User> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
     if (email.present) {
       map['email'] = Variable<String>(email.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
     }
     return map;
   }
@@ -216,7 +230,8 @@ class UsersCompanion extends UpdateCompanion<User> {
     return (StringBuffer('UsersCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('email: $email')
+          ..write('email: $email, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -230,18 +245,17 @@ class $AppointmentsTable extends Appointments
   $AppointmentsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
       'id', aliasedName, false,
-      hasAutoIncrement: true,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+      additionalChecks:
+          GeneratedColumn.checkTextLength(minTextLength: 1, maxTextLength: 255),
+      type: DriftSqlType.string,
+      requiredDuringInsert: true);
   static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
   @override
-  late final GeneratedColumn<int> userId = GeneratedColumn<int>(
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
       'user_id', aliasedName, false,
-      type: DriftSqlType.int,
+      type: DriftSqlType.string,
       requiredDuringInsert: true,
       $customConstraints: 'NOT NULL REFERENCES users(id) ON DELETE CASCADE');
   static const VerificationMeta _doctorNameMeta =
@@ -292,6 +306,8 @@ class $AppointmentsTable extends Appointments
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('user_id')) {
       context.handle(_userIdMeta,
@@ -341,9 +357,9 @@ class $AppointmentsTable extends Appointments
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Appointment(
       id: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       userId: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}user_id'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
       doctorName: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}doctor_name'])!,
       location: attachedDatabase.typeMapping
@@ -364,8 +380,8 @@ class $AppointmentsTable extends Appointments
 }
 
 class Appointment extends DataClass implements Insertable<Appointment> {
-  final int id;
-  final int userId;
+  final String id;
+  final String userId;
   final String doctorName;
   final String location;
   final DateTime appointmentDate;
@@ -382,8 +398,8 @@ class Appointment extends DataClass implements Insertable<Appointment> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['user_id'] = Variable<int>(userId);
+    map['id'] = Variable<String>(id);
+    map['user_id'] = Variable<String>(userId);
     map['doctor_name'] = Variable<String>(doctorName);
     map['location'] = Variable<String>(location);
     map['appointment_date'] = Variable<DateTime>(appointmentDate);
@@ -411,8 +427,8 @@ class Appointment extends DataClass implements Insertable<Appointment> {
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Appointment(
-      id: serializer.fromJson<int>(json['id']),
-      userId: serializer.fromJson<int>(json['userId']),
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String>(json['userId']),
       doctorName: serializer.fromJson<String>(json['doctorName']),
       location: serializer.fromJson<String>(json['location']),
       appointmentDate: serializer.fromJson<DateTime>(json['appointmentDate']),
@@ -424,8 +440,8 @@ class Appointment extends DataClass implements Insertable<Appointment> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'userId': serializer.toJson<int>(userId),
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String>(userId),
       'doctorName': serializer.toJson<String>(doctorName),
       'location': serializer.toJson<String>(location),
       'appointmentDate': serializer.toJson<DateTime>(appointmentDate),
@@ -435,8 +451,8 @@ class Appointment extends DataClass implements Insertable<Appointment> {
   }
 
   Appointment copyWith(
-          {int? id,
-          int? userId,
+          {String? id,
+          String? userId,
           String? doctorName,
           String? location,
           DateTime? appointmentDate,
@@ -498,13 +514,14 @@ class Appointment extends DataClass implements Insertable<Appointment> {
 }
 
 class AppointmentsCompanion extends UpdateCompanion<Appointment> {
-  final Value<int> id;
-  final Value<int> userId;
+  final Value<String> id;
+  final Value<String> userId;
   final Value<String> doctorName;
   final Value<String> location;
   final Value<DateTime> appointmentDate;
   final Value<String?> notes;
   final Value<bool> isCompleted;
+  final Value<int> rowid;
   const AppointmentsCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
@@ -513,27 +530,31 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
     this.appointmentDate = const Value.absent(),
     this.notes = const Value.absent(),
     this.isCompleted = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   AppointmentsCompanion.insert({
-    this.id = const Value.absent(),
-    required int userId,
+    required String id,
+    required String userId,
     required String doctorName,
     required String location,
     required DateTime appointmentDate,
     this.notes = const Value.absent(),
     this.isCompleted = const Value.absent(),
-  })  : userId = Value(userId),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        userId = Value(userId),
         doctorName = Value(doctorName),
         location = Value(location),
         appointmentDate = Value(appointmentDate);
   static Insertable<Appointment> custom({
-    Expression<int>? id,
-    Expression<int>? userId,
+    Expression<String>? id,
+    Expression<String>? userId,
     Expression<String>? doctorName,
     Expression<String>? location,
     Expression<DateTime>? appointmentDate,
     Expression<String>? notes,
     Expression<bool>? isCompleted,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -543,17 +564,19 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
       if (appointmentDate != null) 'appointment_date': appointmentDate,
       if (notes != null) 'notes': notes,
       if (isCompleted != null) 'is_completed': isCompleted,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   AppointmentsCompanion copyWith(
-      {Value<int>? id,
-      Value<int>? userId,
+      {Value<String>? id,
+      Value<String>? userId,
       Value<String>? doctorName,
       Value<String>? location,
       Value<DateTime>? appointmentDate,
       Value<String?>? notes,
-      Value<bool>? isCompleted}) {
+      Value<bool>? isCompleted,
+      Value<int>? rowid}) {
     return AppointmentsCompanion(
       id: id ?? this.id,
       userId: userId ?? this.userId,
@@ -562,6 +585,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
       appointmentDate: appointmentDate ?? this.appointmentDate,
       notes: notes ?? this.notes,
       isCompleted: isCompleted ?? this.isCompleted,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -569,10 +593,10 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (userId.present) {
-      map['user_id'] = Variable<int>(userId.value);
+      map['user_id'] = Variable<String>(userId.value);
     }
     if (doctorName.present) {
       map['doctor_name'] = Variable<String>(doctorName.value);
@@ -589,6 +613,9 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
     if (isCompleted.present) {
       map['is_completed'] = Variable<bool>(isCompleted.value);
     }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
     return map;
   }
 
@@ -601,7 +628,8 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
           ..write('location: $location, ')
           ..write('appointmentDate: $appointmentDate, ')
           ..write('notes: $notes, ')
-          ..write('isCompleted: $isCompleted')
+          ..write('isCompleted: $isCompleted, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -615,18 +643,17 @@ class $MedicationsTable extends Medications
   $MedicationsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
       'id', aliasedName, false,
-      hasAutoIncrement: true,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+      additionalChecks:
+          GeneratedColumn.checkTextLength(minTextLength: 1, maxTextLength: 255),
+      type: DriftSqlType.string,
+      requiredDuringInsert: true);
   static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
   @override
-  late final GeneratedColumn<int> userId = GeneratedColumn<int>(
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
       'user_id', aliasedName, false,
-      type: DriftSqlType.int,
+      type: DriftSqlType.string,
       requiredDuringInsert: true,
       $customConstraints: 'NOT NULL REFERENCES users(id) ON DELETE CASCADE');
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
@@ -637,14 +664,14 @@ class $MedicationsTable extends Medications
   static const VerificationMeta _dosageMeta = const VerificationMeta('dosage');
   @override
   late final GeneratedColumn<String> dosage = GeneratedColumn<String>(
-      'dosage', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+      'dosage', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _frequencyMeta =
       const VerificationMeta('frequency');
   @override
   late final GeneratedColumn<String> frequency = GeneratedColumn<String>(
-      'frequency', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+      'frequency', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _nextDoseMeta =
       const VerificationMeta('nextDose');
   @override
@@ -676,6 +703,8 @@ class $MedicationsTable extends Medications
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('user_id')) {
       context.handle(_userIdMeta,
@@ -692,14 +721,10 @@ class $MedicationsTable extends Medications
     if (data.containsKey('dosage')) {
       context.handle(_dosageMeta,
           dosage.isAcceptableOrUnknown(data['dosage']!, _dosageMeta));
-    } else if (isInserting) {
-      context.missing(_dosageMeta);
     }
     if (data.containsKey('frequency')) {
       context.handle(_frequencyMeta,
           frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta));
-    } else if (isInserting) {
-      context.missing(_frequencyMeta);
     }
     if (data.containsKey('next_dose')) {
       context.handle(_nextDoseMeta,
@@ -719,15 +744,15 @@ class $MedicationsTable extends Medications
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Medication(
       id: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       userId: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}user_id'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
       name: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       dosage: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}dosage'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}dosage']),
       frequency: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}frequency'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}frequency']),
       nextDose: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}next_dose']),
       isActive: attachedDatabase.typeMapping
@@ -742,29 +767,33 @@ class $MedicationsTable extends Medications
 }
 
 class Medication extends DataClass implements Insertable<Medication> {
-  final int id;
-  final int userId;
+  final String id;
+  final String userId;
   final String name;
-  final String dosage;
-  final String frequency;
+  final String? dosage;
+  final String? frequency;
   final DateTime? nextDose;
   final bool isActive;
   const Medication(
       {required this.id,
       required this.userId,
       required this.name,
-      required this.dosage,
-      required this.frequency,
+      this.dosage,
+      this.frequency,
       this.nextDose,
       required this.isActive});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['user_id'] = Variable<int>(userId);
+    map['id'] = Variable<String>(id);
+    map['user_id'] = Variable<String>(userId);
     map['name'] = Variable<String>(name);
-    map['dosage'] = Variable<String>(dosage);
-    map['frequency'] = Variable<String>(frequency);
+    if (!nullToAbsent || dosage != null) {
+      map['dosage'] = Variable<String>(dosage);
+    }
+    if (!nullToAbsent || frequency != null) {
+      map['frequency'] = Variable<String>(frequency);
+    }
     if (!nullToAbsent || nextDose != null) {
       map['next_dose'] = Variable<DateTime>(nextDose);
     }
@@ -777,8 +806,11 @@ class Medication extends DataClass implements Insertable<Medication> {
       id: Value(id),
       userId: Value(userId),
       name: Value(name),
-      dosage: Value(dosage),
-      frequency: Value(frequency),
+      dosage:
+          dosage == null && nullToAbsent ? const Value.absent() : Value(dosage),
+      frequency: frequency == null && nullToAbsent
+          ? const Value.absent()
+          : Value(frequency),
       nextDose: nextDose == null && nullToAbsent
           ? const Value.absent()
           : Value(nextDose),
@@ -790,11 +822,11 @@ class Medication extends DataClass implements Insertable<Medication> {
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Medication(
-      id: serializer.fromJson<int>(json['id']),
-      userId: serializer.fromJson<int>(json['userId']),
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String>(json['userId']),
       name: serializer.fromJson<String>(json['name']),
-      dosage: serializer.fromJson<String>(json['dosage']),
-      frequency: serializer.fromJson<String>(json['frequency']),
+      dosage: serializer.fromJson<String?>(json['dosage']),
+      frequency: serializer.fromJson<String?>(json['frequency']),
       nextDose: serializer.fromJson<DateTime?>(json['nextDose']),
       isActive: serializer.fromJson<bool>(json['isActive']),
     );
@@ -803,30 +835,30 @@ class Medication extends DataClass implements Insertable<Medication> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'userId': serializer.toJson<int>(userId),
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String>(userId),
       'name': serializer.toJson<String>(name),
-      'dosage': serializer.toJson<String>(dosage),
-      'frequency': serializer.toJson<String>(frequency),
+      'dosage': serializer.toJson<String?>(dosage),
+      'frequency': serializer.toJson<String?>(frequency),
       'nextDose': serializer.toJson<DateTime?>(nextDose),
       'isActive': serializer.toJson<bool>(isActive),
     };
   }
 
   Medication copyWith(
-          {int? id,
-          int? userId,
+          {String? id,
+          String? userId,
           String? name,
-          String? dosage,
-          String? frequency,
+          Value<String?> dosage = const Value.absent(),
+          Value<String?> frequency = const Value.absent(),
           Value<DateTime?> nextDose = const Value.absent(),
           bool? isActive}) =>
       Medication(
         id: id ?? this.id,
         userId: userId ?? this.userId,
         name: name ?? this.name,
-        dosage: dosage ?? this.dosage,
-        frequency: frequency ?? this.frequency,
+        dosage: dosage.present ? dosage.value : this.dosage,
+        frequency: frequency.present ? frequency.value : this.frequency,
         nextDose: nextDose.present ? nextDose.value : this.nextDose,
         isActive: isActive ?? this.isActive,
       );
@@ -873,13 +905,14 @@ class Medication extends DataClass implements Insertable<Medication> {
 }
 
 class MedicationsCompanion extends UpdateCompanion<Medication> {
-  final Value<int> id;
-  final Value<int> userId;
+  final Value<String> id;
+  final Value<String> userId;
   final Value<String> name;
-  final Value<String> dosage;
-  final Value<String> frequency;
+  final Value<String?> dosage;
+  final Value<String?> frequency;
   final Value<DateTime?> nextDose;
   final Value<bool> isActive;
+  final Value<int> rowid;
   const MedicationsCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
@@ -888,27 +921,29 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
     this.frequency = const Value.absent(),
     this.nextDose = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   MedicationsCompanion.insert({
-    this.id = const Value.absent(),
-    required int userId,
+    required String id,
+    required String userId,
     required String name,
-    required String dosage,
-    required String frequency,
+    this.dosage = const Value.absent(),
+    this.frequency = const Value.absent(),
     this.nextDose = const Value.absent(),
     this.isActive = const Value.absent(),
-  })  : userId = Value(userId),
-        name = Value(name),
-        dosage = Value(dosage),
-        frequency = Value(frequency);
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        userId = Value(userId),
+        name = Value(name);
   static Insertable<Medication> custom({
-    Expression<int>? id,
-    Expression<int>? userId,
+    Expression<String>? id,
+    Expression<String>? userId,
     Expression<String>? name,
     Expression<String>? dosage,
     Expression<String>? frequency,
     Expression<DateTime>? nextDose,
     Expression<bool>? isActive,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -918,17 +953,19 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
       if (frequency != null) 'frequency': frequency,
       if (nextDose != null) 'next_dose': nextDose,
       if (isActive != null) 'is_active': isActive,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   MedicationsCompanion copyWith(
-      {Value<int>? id,
-      Value<int>? userId,
+      {Value<String>? id,
+      Value<String>? userId,
       Value<String>? name,
-      Value<String>? dosage,
-      Value<String>? frequency,
+      Value<String?>? dosage,
+      Value<String?>? frequency,
       Value<DateTime?>? nextDose,
-      Value<bool>? isActive}) {
+      Value<bool>? isActive,
+      Value<int>? rowid}) {
     return MedicationsCompanion(
       id: id ?? this.id,
       userId: userId ?? this.userId,
@@ -937,6 +974,7 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
       frequency: frequency ?? this.frequency,
       nextDose: nextDose ?? this.nextDose,
       isActive: isActive ?? this.isActive,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -944,10 +982,10 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (userId.present) {
-      map['user_id'] = Variable<int>(userId.value);
+      map['user_id'] = Variable<String>(userId.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -964,6 +1002,9 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
     return map;
   }
 
@@ -976,18 +1017,19 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
           ..write('dosage: $dosage, ')
           ..write('frequency: $frequency, ')
           ..write('nextDose: $nextDose, ')
-          ..write('isActive: $isActive')
+          ..write('isActive: $isActive, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
 }
 
-class $MedicalHistoryTable extends MedicalHistory
-    with TableInfo<$MedicalHistoryTable, MedicalHistoryData> {
+class $HistoryEntriesTable extends HistoryEntries
+    with TableInfo<$HistoryEntriesTable, HistoryEntry> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $MedicalHistoryTable(this.attachedDatabase, [this._alias]);
+  $HistoryEntriesTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -999,9 +1041,9 @@ class $MedicalHistoryTable extends MedicalHistory
           GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
   static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
   @override
-  late final GeneratedColumn<int> userId = GeneratedColumn<int>(
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
       'user_id', aliasedName, false,
-      type: DriftSqlType.int,
+      type: DriftSqlType.string,
       requiredDuringInsert: true,
       $customConstraints: 'NOT NULL REFERENCES users(id) ON DELETE CASCADE');
   static const VerificationMeta _eventTypeMeta =
@@ -1029,9 +1071,9 @@ class $MedicalHistoryTable extends MedicalHistory
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'medical_history';
+  static const String $name = 'history_entries';
   @override
-  VerificationContext validateIntegrity(Insertable<MedicalHistoryData> instance,
+  VerificationContext validateIntegrity(Insertable<HistoryEntry> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -1068,13 +1110,13 @@ class $MedicalHistoryTable extends MedicalHistory
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  MedicalHistoryData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  HistoryEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return MedicalHistoryData(
+    return HistoryEntry(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       userId: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}user_id'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
       eventType: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}event_type'])!,
       details: attachedDatabase.typeMapping
@@ -1085,19 +1127,18 @@ class $MedicalHistoryTable extends MedicalHistory
   }
 
   @override
-  $MedicalHistoryTable createAlias(String alias) {
-    return $MedicalHistoryTable(attachedDatabase, alias);
+  $HistoryEntriesTable createAlias(String alias) {
+    return $HistoryEntriesTable(attachedDatabase, alias);
   }
 }
 
-class MedicalHistoryData extends DataClass
-    implements Insertable<MedicalHistoryData> {
+class HistoryEntry extends DataClass implements Insertable<HistoryEntry> {
   final int id;
-  final int userId;
+  final String userId;
   final String eventType;
   final String details;
   final DateTime timestamp;
-  const MedicalHistoryData(
+  const HistoryEntry(
       {required this.id,
       required this.userId,
       required this.eventType,
@@ -1107,15 +1148,15 @@ class MedicalHistoryData extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['user_id'] = Variable<int>(userId);
+    map['user_id'] = Variable<String>(userId);
     map['event_type'] = Variable<String>(eventType);
     map['details'] = Variable<String>(details);
     map['timestamp'] = Variable<DateTime>(timestamp);
     return map;
   }
 
-  MedicalHistoryCompanion toCompanion(bool nullToAbsent) {
-    return MedicalHistoryCompanion(
+  HistoryEntriesCompanion toCompanion(bool nullToAbsent) {
+    return HistoryEntriesCompanion(
       id: Value(id),
       userId: Value(userId),
       eventType: Value(eventType),
@@ -1124,12 +1165,12 @@ class MedicalHistoryData extends DataClass
     );
   }
 
-  factory MedicalHistoryData.fromJson(Map<String, dynamic> json,
+  factory HistoryEntry.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return MedicalHistoryData(
+    return HistoryEntry(
       id: serializer.fromJson<int>(json['id']),
-      userId: serializer.fromJson<int>(json['userId']),
+      userId: serializer.fromJson<String>(json['userId']),
       eventType: serializer.fromJson<String>(json['eventType']),
       details: serializer.fromJson<String>(json['details']),
       timestamp: serializer.fromJson<DateTime>(json['timestamp']),
@@ -1140,28 +1181,28 @@ class MedicalHistoryData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'userId': serializer.toJson<int>(userId),
+      'userId': serializer.toJson<String>(userId),
       'eventType': serializer.toJson<String>(eventType),
       'details': serializer.toJson<String>(details),
       'timestamp': serializer.toJson<DateTime>(timestamp),
     };
   }
 
-  MedicalHistoryData copyWith(
+  HistoryEntry copyWith(
           {int? id,
-          int? userId,
+          String? userId,
           String? eventType,
           String? details,
           DateTime? timestamp}) =>
-      MedicalHistoryData(
+      HistoryEntry(
         id: id ?? this.id,
         userId: userId ?? this.userId,
         eventType: eventType ?? this.eventType,
         details: details ?? this.details,
         timestamp: timestamp ?? this.timestamp,
       );
-  MedicalHistoryData copyWithCompanion(MedicalHistoryCompanion data) {
-    return MedicalHistoryData(
+  HistoryEntry copyWithCompanion(HistoryEntriesCompanion data) {
+    return HistoryEntry(
       id: data.id.present ? data.id.value : this.id,
       userId: data.userId.present ? data.userId.value : this.userId,
       eventType: data.eventType.present ? data.eventType.value : this.eventType,
@@ -1172,7 +1213,7 @@ class MedicalHistoryData extends DataClass
 
   @override
   String toString() {
-    return (StringBuffer('MedicalHistoryData(')
+    return (StringBuffer('HistoryEntry(')
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('eventType: $eventType, ')
@@ -1187,7 +1228,7 @@ class MedicalHistoryData extends DataClass
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is MedicalHistoryData &&
+      (other is HistoryEntry &&
           other.id == this.id &&
           other.userId == this.userId &&
           other.eventType == this.eventType &&
@@ -1195,22 +1236,22 @@ class MedicalHistoryData extends DataClass
           other.timestamp == this.timestamp);
 }
 
-class MedicalHistoryCompanion extends UpdateCompanion<MedicalHistoryData> {
+class HistoryEntriesCompanion extends UpdateCompanion<HistoryEntry> {
   final Value<int> id;
-  final Value<int> userId;
+  final Value<String> userId;
   final Value<String> eventType;
   final Value<String> details;
   final Value<DateTime> timestamp;
-  const MedicalHistoryCompanion({
+  const HistoryEntriesCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
     this.eventType = const Value.absent(),
     this.details = const Value.absent(),
     this.timestamp = const Value.absent(),
   });
-  MedicalHistoryCompanion.insert({
+  HistoryEntriesCompanion.insert({
     this.id = const Value.absent(),
-    required int userId,
+    required String userId,
     required String eventType,
     required String details,
     required DateTime timestamp,
@@ -1218,9 +1259,9 @@ class MedicalHistoryCompanion extends UpdateCompanion<MedicalHistoryData> {
         eventType = Value(eventType),
         details = Value(details),
         timestamp = Value(timestamp);
-  static Insertable<MedicalHistoryData> custom({
+  static Insertable<HistoryEntry> custom({
     Expression<int>? id,
-    Expression<int>? userId,
+    Expression<String>? userId,
     Expression<String>? eventType,
     Expression<String>? details,
     Expression<DateTime>? timestamp,
@@ -1234,13 +1275,13 @@ class MedicalHistoryCompanion extends UpdateCompanion<MedicalHistoryData> {
     });
   }
 
-  MedicalHistoryCompanion copyWith(
+  HistoryEntriesCompanion copyWith(
       {Value<int>? id,
-      Value<int>? userId,
+      Value<String>? userId,
       Value<String>? eventType,
       Value<String>? details,
       Value<DateTime>? timestamp}) {
-    return MedicalHistoryCompanion(
+    return HistoryEntriesCompanion(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       eventType: eventType ?? this.eventType,
@@ -1256,7 +1297,7 @@ class MedicalHistoryCompanion extends UpdateCompanion<MedicalHistoryData> {
       map['id'] = Variable<int>(id.value);
     }
     if (userId.present) {
-      map['user_id'] = Variable<int>(userId.value);
+      map['user_id'] = Variable<String>(userId.value);
     }
     if (eventType.present) {
       map['event_type'] = Variable<String>(eventType.value);
@@ -1272,7 +1313,7 @@ class MedicalHistoryCompanion extends UpdateCompanion<MedicalHistoryData> {
 
   @override
   String toString() {
-    return (StringBuffer('MedicalHistoryCompanion(')
+    return (StringBuffer('HistoryEntriesCompanion(')
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('eventType: $eventType, ')
@@ -1289,13 +1330,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $UsersTable users = $UsersTable(this);
   late final $AppointmentsTable appointments = $AppointmentsTable(this);
   late final $MedicationsTable medications = $MedicationsTable(this);
-  late final $MedicalHistoryTable medicalHistory = $MedicalHistoryTable(this);
+  late final $HistoryEntriesTable historyEntries = $HistoryEntriesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [users, appointments, medications, medicalHistory];
+      [users, appointments, medications, historyEntries];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
         [
@@ -1317,7 +1358,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
             on: TableUpdateQuery.onTableName('users',
                 limitUpdateKind: UpdateKind.delete),
             result: [
-              TableUpdate('medical_history', kind: UpdateKind.delete),
+              TableUpdate('history_entries', kind: UpdateKind.delete),
             ],
           ),
         ],
@@ -1325,14 +1366,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 }
 
 typedef $$UsersTableCreateCompanionBuilder = UsersCompanion Function({
-  Value<int> id,
+  required String id,
   required String name,
   Value<String?> email,
+  Value<int> rowid,
 });
 typedef $$UsersTableUpdateCompanionBuilder = UsersCompanion Function({
-  Value<int> id,
+  Value<String> id,
   Value<String> name,
   Value<String?> email,
+  Value<int> rowid,
 });
 
 final class $$UsersTableReferences
@@ -1346,7 +1389,7 @@ final class $$UsersTableReferences
 
   $$AppointmentsTableProcessedTableManager get appointmentsRefs {
     final manager = $$AppointmentsTableTableManager($_db, $_db.appointments)
-        .filter((f) => f.userId.id.sqlEquals($_itemColumn<int>('id')!));
+        .filter((f) => f.userId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_appointmentsRefsTable($_db));
     return ProcessedTableManager(
@@ -1360,24 +1403,24 @@ final class $$UsersTableReferences
 
   $$MedicationsTableProcessedTableManager get medicationsRefs {
     final manager = $$MedicationsTableTableManager($_db, $_db.medications)
-        .filter((f) => f.userId.id.sqlEquals($_itemColumn<int>('id')!));
+        .filter((f) => f.userId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_medicationsRefsTable($_db));
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
 
-  static MultiTypedResultKey<$MedicalHistoryTable, List<MedicalHistoryData>>
-      _medicalHistoryRefsTable(_$AppDatabase db) =>
-          MultiTypedResultKey.fromTable(db.medicalHistory,
+  static MultiTypedResultKey<$HistoryEntriesTable, List<HistoryEntry>>
+      _historyEntriesRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.historyEntries,
               aliasName:
-                  $_aliasNameGenerator(db.users.id, db.medicalHistory.userId));
+                  $_aliasNameGenerator(db.users.id, db.historyEntries.userId));
 
-  $$MedicalHistoryTableProcessedTableManager get medicalHistoryRefs {
-    final manager = $$MedicalHistoryTableTableManager($_db, $_db.medicalHistory)
-        .filter((f) => f.userId.id.sqlEquals($_itemColumn<int>('id')!));
+  $$HistoryEntriesTableProcessedTableManager get historyEntriesRefs {
+    final manager = $$HistoryEntriesTableTableManager($_db, $_db.historyEntries)
+        .filter((f) => f.userId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_medicalHistoryRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_historyEntriesRefsTable($_db));
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
@@ -1391,7 +1434,7 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get name => $composableBuilder(
@@ -1442,19 +1485,19 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
     return f(composer);
   }
 
-  Expression<bool> medicalHistoryRefs(
-      Expression<bool> Function($$MedicalHistoryTableFilterComposer f) f) {
-    final $$MedicalHistoryTableFilterComposer composer = $composerBuilder(
+  Expression<bool> historyEntriesRefs(
+      Expression<bool> Function($$HistoryEntriesTableFilterComposer f) f) {
+    final $$HistoryEntriesTableFilterComposer composer = $composerBuilder(
         composer: this,
         getCurrentColumn: (t) => t.id,
-        referencedTable: $db.medicalHistory,
+        referencedTable: $db.historyEntries,
         getReferencedColumn: (t) => t.userId,
         builder: (joinBuilder,
                 {$addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer}) =>
-            $$MedicalHistoryTableFilterComposer(
+            $$HistoryEntriesTableFilterComposer(
               $db: $db,
-              $table: $db.medicalHistory,
+              $table: $db.historyEntries,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -1473,7 +1516,7 @@ class $$UsersTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name => $composableBuilder(
@@ -1492,7 +1535,7 @@ class $$UsersTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
@@ -1543,19 +1586,19 @@ class $$UsersTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> medicalHistoryRefs<T extends Object>(
-      Expression<T> Function($$MedicalHistoryTableAnnotationComposer a) f) {
-    final $$MedicalHistoryTableAnnotationComposer composer = $composerBuilder(
+  Expression<T> historyEntriesRefs<T extends Object>(
+      Expression<T> Function($$HistoryEntriesTableAnnotationComposer a) f) {
+    final $$HistoryEntriesTableAnnotationComposer composer = $composerBuilder(
         composer: this,
         getCurrentColumn: (t) => t.id,
-        referencedTable: $db.medicalHistory,
+        referencedTable: $db.historyEntries,
         getReferencedColumn: (t) => t.userId,
         builder: (joinBuilder,
                 {$addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer}) =>
-            $$MedicalHistoryTableAnnotationComposer(
+            $$HistoryEntriesTableAnnotationComposer(
               $db: $db,
-              $table: $db.medicalHistory,
+              $table: $db.historyEntries,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -1579,7 +1622,7 @@ class $$UsersTableTableManager extends RootTableManager<
     PrefetchHooks Function(
         {bool appointmentsRefs,
         bool medicationsRefs,
-        bool medicalHistoryRefs})> {
+        bool historyEntriesRefs})> {
   $$UsersTableTableManager(_$AppDatabase db, $UsersTable table)
       : super(TableManagerState(
           db: db,
@@ -1591,24 +1634,28 @@ class $$UsersTableTableManager extends RootTableManager<
           createComputedFieldComposer: () =>
               $$UsersTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
+            Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> email = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               UsersCompanion(
             id: id,
             name: name,
             email: email,
+            rowid: rowid,
           ),
           createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
+            required String id,
             required String name,
             Value<String?> email = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               UsersCompanion.insert(
             id: id,
             name: name,
             email: email,
+            rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) =>
@@ -1617,13 +1664,13 @@ class $$UsersTableTableManager extends RootTableManager<
           prefetchHooksCallback: (
               {appointmentsRefs = false,
               medicationsRefs = false,
-              medicalHistoryRefs = false}) {
+              historyEntriesRefs = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [
                 if (appointmentsRefs) db.appointments,
                 if (medicationsRefs) db.medications,
-                if (medicalHistoryRefs) db.medicalHistory
+                if (historyEntriesRefs) db.historyEntries
               ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
@@ -1652,15 +1699,14 @@ class $$UsersTableTableManager extends RootTableManager<
                                 referencedItems) =>
                             referencedItems.where((e) => e.userId == item.id),
                         typedResults: items),
-                  if (medicalHistoryRefs)
-                    await $_getPrefetchedData<User, $UsersTable,
-                            MedicalHistoryData>(
+                  if (historyEntriesRefs)
+                    await $_getPrefetchedData<User, $UsersTable, HistoryEntry>(
                         currentTable: table,
                         referencedTable:
-                            $$UsersTableReferences._medicalHistoryRefsTable(db),
+                            $$UsersTableReferences._historyEntriesRefsTable(db),
                         managerFromTypedResult: (p0) =>
                             $$UsersTableReferences(db, table, p0)
-                                .medicalHistoryRefs,
+                                .historyEntriesRefs,
                         referencedItemsForCurrentItem: (item,
                                 referencedItems) =>
                             referencedItems.where((e) => e.userId == item.id),
@@ -1686,26 +1732,28 @@ typedef $$UsersTableProcessedTableManager = ProcessedTableManager<
     PrefetchHooks Function(
         {bool appointmentsRefs,
         bool medicationsRefs,
-        bool medicalHistoryRefs})>;
+        bool historyEntriesRefs})>;
 typedef $$AppointmentsTableCreateCompanionBuilder = AppointmentsCompanion
     Function({
-  Value<int> id,
-  required int userId,
+  required String id,
+  required String userId,
   required String doctorName,
   required String location,
   required DateTime appointmentDate,
   Value<String?> notes,
   Value<bool> isCompleted,
+  Value<int> rowid,
 });
 typedef $$AppointmentsTableUpdateCompanionBuilder = AppointmentsCompanion
     Function({
-  Value<int> id,
-  Value<int> userId,
+  Value<String> id,
+  Value<String> userId,
   Value<String> doctorName,
   Value<String> location,
   Value<DateTime> appointmentDate,
   Value<String?> notes,
   Value<bool> isCompleted,
+  Value<int> rowid,
 });
 
 final class $$AppointmentsTableReferences
@@ -1716,7 +1764,7 @@ final class $$AppointmentsTableReferences
       .createAlias($_aliasNameGenerator(db.appointments.userId, db.users.id));
 
   $$UsersTableProcessedTableManager get userId {
-    final $_column = $_itemColumn<int>('user_id')!;
+    final $_column = $_itemColumn<String>('user_id')!;
 
     final manager = $$UsersTableTableManager($_db, $_db.users)
         .filter((f) => f.id.sqlEquals($_column));
@@ -1736,7 +1784,7 @@ class $$AppointmentsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get doctorName => $composableBuilder(
@@ -1785,7 +1833,7 @@ class $$AppointmentsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get doctorName => $composableBuilder(
@@ -1834,7 +1882,7 @@ class $$AppointmentsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get doctorName => $composableBuilder(
@@ -1896,13 +1944,14 @@ class $$AppointmentsTableTableManager extends RootTableManager<
           createComputedFieldComposer: () =>
               $$AppointmentsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<int> userId = const Value.absent(),
+            Value<String> id = const Value.absent(),
+            Value<String> userId = const Value.absent(),
             Value<String> doctorName = const Value.absent(),
             Value<String> location = const Value.absent(),
             Value<DateTime> appointmentDate = const Value.absent(),
             Value<String?> notes = const Value.absent(),
             Value<bool> isCompleted = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               AppointmentsCompanion(
             id: id,
@@ -1912,15 +1961,17 @@ class $$AppointmentsTableTableManager extends RootTableManager<
             appointmentDate: appointmentDate,
             notes: notes,
             isCompleted: isCompleted,
+            rowid: rowid,
           ),
           createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            required int userId,
+            required String id,
+            required String userId,
             required String doctorName,
             required String location,
             required DateTime appointmentDate,
             Value<String?> notes = const Value.absent(),
             Value<bool> isCompleted = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               AppointmentsCompanion.insert(
             id: id,
@@ -1930,6 +1981,7 @@ class $$AppointmentsTableTableManager extends RootTableManager<
             appointmentDate: appointmentDate,
             notes: notes,
             isCompleted: isCompleted,
+            rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (
@@ -1989,23 +2041,25 @@ typedef $$AppointmentsTableProcessedTableManager = ProcessedTableManager<
     PrefetchHooks Function({bool userId})>;
 typedef $$MedicationsTableCreateCompanionBuilder = MedicationsCompanion
     Function({
-  Value<int> id,
-  required int userId,
+  required String id,
+  required String userId,
   required String name,
-  required String dosage,
-  required String frequency,
+  Value<String?> dosage,
+  Value<String?> frequency,
   Value<DateTime?> nextDose,
   Value<bool> isActive,
+  Value<int> rowid,
 });
 typedef $$MedicationsTableUpdateCompanionBuilder = MedicationsCompanion
     Function({
-  Value<int> id,
-  Value<int> userId,
+  Value<String> id,
+  Value<String> userId,
   Value<String> name,
-  Value<String> dosage,
-  Value<String> frequency,
+  Value<String?> dosage,
+  Value<String?> frequency,
   Value<DateTime?> nextDose,
   Value<bool> isActive,
+  Value<int> rowid,
 });
 
 final class $$MedicationsTableReferences
@@ -2016,7 +2070,7 @@ final class $$MedicationsTableReferences
       .createAlias($_aliasNameGenerator(db.medications.userId, db.users.id));
 
   $$UsersTableProcessedTableManager get userId {
-    final $_column = $_itemColumn<int>('user_id')!;
+    final $_column = $_itemColumn<String>('user_id')!;
 
     final manager = $$UsersTableTableManager($_db, $_db.users)
         .filter((f) => f.id.sqlEquals($_column));
@@ -2036,7 +2090,7 @@ class $$MedicationsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get name => $composableBuilder(
@@ -2084,7 +2138,7 @@ class $$MedicationsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name => $composableBuilder(
@@ -2132,7 +2186,7 @@ class $$MedicationsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
@@ -2194,13 +2248,14 @@ class $$MedicationsTableTableManager extends RootTableManager<
           createComputedFieldComposer: () =>
               $$MedicationsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<int> userId = const Value.absent(),
+            Value<String> id = const Value.absent(),
+            Value<String> userId = const Value.absent(),
             Value<String> name = const Value.absent(),
-            Value<String> dosage = const Value.absent(),
-            Value<String> frequency = const Value.absent(),
+            Value<String?> dosage = const Value.absent(),
+            Value<String?> frequency = const Value.absent(),
             Value<DateTime?> nextDose = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               MedicationsCompanion(
             id: id,
@@ -2210,15 +2265,17 @@ class $$MedicationsTableTableManager extends RootTableManager<
             frequency: frequency,
             nextDose: nextDose,
             isActive: isActive,
+            rowid: rowid,
           ),
           createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            required int userId,
+            required String id,
+            required String userId,
             required String name,
-            required String dosage,
-            required String frequency,
+            Value<String?> dosage = const Value.absent(),
+            Value<String?> frequency = const Value.absent(),
             Value<DateTime?> nextDose = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               MedicationsCompanion.insert(
             id: id,
@@ -2228,6 +2285,7 @@ class $$MedicationsTableTableManager extends RootTableManager<
             frequency: frequency,
             nextDose: nextDose,
             isActive: isActive,
+            rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (
@@ -2285,33 +2343,33 @@ typedef $$MedicationsTableProcessedTableManager = ProcessedTableManager<
     (Medication, $$MedicationsTableReferences),
     Medication,
     PrefetchHooks Function({bool userId})>;
-typedef $$MedicalHistoryTableCreateCompanionBuilder = MedicalHistoryCompanion
+typedef $$HistoryEntriesTableCreateCompanionBuilder = HistoryEntriesCompanion
     Function({
   Value<int> id,
-  required int userId,
+  required String userId,
   required String eventType,
   required String details,
   required DateTime timestamp,
 });
-typedef $$MedicalHistoryTableUpdateCompanionBuilder = MedicalHistoryCompanion
+typedef $$HistoryEntriesTableUpdateCompanionBuilder = HistoryEntriesCompanion
     Function({
   Value<int> id,
-  Value<int> userId,
+  Value<String> userId,
   Value<String> eventType,
   Value<String> details,
   Value<DateTime> timestamp,
 });
 
-final class $$MedicalHistoryTableReferences extends BaseReferences<
-    _$AppDatabase, $MedicalHistoryTable, MedicalHistoryData> {
-  $$MedicalHistoryTableReferences(
+final class $$HistoryEntriesTableReferences
+    extends BaseReferences<_$AppDatabase, $HistoryEntriesTable, HistoryEntry> {
+  $$HistoryEntriesTableReferences(
       super.$_db, super.$_table, super.$_typedResult);
 
   static $UsersTable _userIdTable(_$AppDatabase db) => db.users
-      .createAlias($_aliasNameGenerator(db.medicalHistory.userId, db.users.id));
+      .createAlias($_aliasNameGenerator(db.historyEntries.userId, db.users.id));
 
   $$UsersTableProcessedTableManager get userId {
-    final $_column = $_itemColumn<int>('user_id')!;
+    final $_column = $_itemColumn<String>('user_id')!;
 
     final manager = $$UsersTableTableManager($_db, $_db.users)
         .filter((f) => f.id.sqlEquals($_column));
@@ -2322,9 +2380,9 @@ final class $$MedicalHistoryTableReferences extends BaseReferences<
   }
 }
 
-class $$MedicalHistoryTableFilterComposer
-    extends Composer<_$AppDatabase, $MedicalHistoryTable> {
-  $$MedicalHistoryTableFilterComposer({
+class $$HistoryEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $HistoryEntriesTable> {
+  $$HistoryEntriesTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2364,9 +2422,9 @@ class $$MedicalHistoryTableFilterComposer
   }
 }
 
-class $$MedicalHistoryTableOrderingComposer
-    extends Composer<_$AppDatabase, $MedicalHistoryTable> {
-  $$MedicalHistoryTableOrderingComposer({
+class $$HistoryEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $HistoryEntriesTable> {
+  $$HistoryEntriesTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2406,9 +2464,9 @@ class $$MedicalHistoryTableOrderingComposer
   }
 }
 
-class $$MedicalHistoryTableAnnotationComposer
-    extends Composer<_$AppDatabase, $MedicalHistoryTable> {
-  $$MedicalHistoryTableAnnotationComposer({
+class $$HistoryEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HistoryEntriesTable> {
+  $$HistoryEntriesTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2448,37 +2506,37 @@ class $$MedicalHistoryTableAnnotationComposer
   }
 }
 
-class $$MedicalHistoryTableTableManager extends RootTableManager<
+class $$HistoryEntriesTableTableManager extends RootTableManager<
     _$AppDatabase,
-    $MedicalHistoryTable,
-    MedicalHistoryData,
-    $$MedicalHistoryTableFilterComposer,
-    $$MedicalHistoryTableOrderingComposer,
-    $$MedicalHistoryTableAnnotationComposer,
-    $$MedicalHistoryTableCreateCompanionBuilder,
-    $$MedicalHistoryTableUpdateCompanionBuilder,
-    (MedicalHistoryData, $$MedicalHistoryTableReferences),
-    MedicalHistoryData,
+    $HistoryEntriesTable,
+    HistoryEntry,
+    $$HistoryEntriesTableFilterComposer,
+    $$HistoryEntriesTableOrderingComposer,
+    $$HistoryEntriesTableAnnotationComposer,
+    $$HistoryEntriesTableCreateCompanionBuilder,
+    $$HistoryEntriesTableUpdateCompanionBuilder,
+    (HistoryEntry, $$HistoryEntriesTableReferences),
+    HistoryEntry,
     PrefetchHooks Function({bool userId})> {
-  $$MedicalHistoryTableTableManager(
-      _$AppDatabase db, $MedicalHistoryTable table)
+  $$HistoryEntriesTableTableManager(
+      _$AppDatabase db, $HistoryEntriesTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$MedicalHistoryTableFilterComposer($db: db, $table: table),
+              $$HistoryEntriesTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$MedicalHistoryTableOrderingComposer($db: db, $table: table),
+              $$HistoryEntriesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$MedicalHistoryTableAnnotationComposer($db: db, $table: table),
+              $$HistoryEntriesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
-            Value<int> userId = const Value.absent(),
+            Value<String> userId = const Value.absent(),
             Value<String> eventType = const Value.absent(),
             Value<String> details = const Value.absent(),
             Value<DateTime> timestamp = const Value.absent(),
           }) =>
-              MedicalHistoryCompanion(
+              HistoryEntriesCompanion(
             id: id,
             userId: userId,
             eventType: eventType,
@@ -2487,12 +2545,12 @@ class $$MedicalHistoryTableTableManager extends RootTableManager<
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
-            required int userId,
+            required String userId,
             required String eventType,
             required String details,
             required DateTime timestamp,
           }) =>
-              MedicalHistoryCompanion.insert(
+              HistoryEntriesCompanion.insert(
             id: id,
             userId: userId,
             eventType: eventType,
@@ -2502,7 +2560,7 @@ class $$MedicalHistoryTableTableManager extends RootTableManager<
           withReferenceMapper: (p0) => p0
               .map((e) => (
                     e.readTable(table),
-                    $$MedicalHistoryTableReferences(db, table, e)
+                    $$HistoryEntriesTableReferences(db, table, e)
                   ))
               .toList(),
           prefetchHooksCallback: ({userId = false}) {
@@ -2527,9 +2585,9 @@ class $$MedicalHistoryTableTableManager extends RootTableManager<
                     currentTable: table,
                     currentColumn: table.userId,
                     referencedTable:
-                        $$MedicalHistoryTableReferences._userIdTable(db),
+                        $$HistoryEntriesTableReferences._userIdTable(db),
                     referencedColumn:
-                        $$MedicalHistoryTableReferences._userIdTable(db).id,
+                        $$HistoryEntriesTableReferences._userIdTable(db).id,
                   ) as T;
                 }
 
@@ -2543,17 +2601,17 @@ class $$MedicalHistoryTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$MedicalHistoryTableProcessedTableManager = ProcessedTableManager<
+typedef $$HistoryEntriesTableProcessedTableManager = ProcessedTableManager<
     _$AppDatabase,
-    $MedicalHistoryTable,
-    MedicalHistoryData,
-    $$MedicalHistoryTableFilterComposer,
-    $$MedicalHistoryTableOrderingComposer,
-    $$MedicalHistoryTableAnnotationComposer,
-    $$MedicalHistoryTableCreateCompanionBuilder,
-    $$MedicalHistoryTableUpdateCompanionBuilder,
-    (MedicalHistoryData, $$MedicalHistoryTableReferences),
-    MedicalHistoryData,
+    $HistoryEntriesTable,
+    HistoryEntry,
+    $$HistoryEntriesTableFilterComposer,
+    $$HistoryEntriesTableOrderingComposer,
+    $$HistoryEntriesTableAnnotationComposer,
+    $$HistoryEntriesTableCreateCompanionBuilder,
+    $$HistoryEntriesTableUpdateCompanionBuilder,
+    (HistoryEntry, $$HistoryEntriesTableReferences),
+    HistoryEntry,
     PrefetchHooks Function({bool userId})>;
 
 class $AppDatabaseManager {
@@ -2565,6 +2623,6 @@ class $AppDatabaseManager {
       $$AppointmentsTableTableManager(_db, _db.appointments);
   $$MedicationsTableTableManager get medications =>
       $$MedicationsTableTableManager(_db, _db.medications);
-  $$MedicalHistoryTableTableManager get medicalHistory =>
-      $$MedicalHistoryTableTableManager(_db, _db.medicalHistory);
+  $$HistoryEntriesTableTableManager get historyEntries =>
+      $$HistoryEntriesTableTableManager(_db, _db.historyEntries);
 }

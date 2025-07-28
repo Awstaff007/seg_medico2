@@ -1,115 +1,75 @@
-// lib/edit_medication_page.dart
-
 import 'package:flutter/material.dart';
-import 'package:seg_medico2/data/database.dart'; // Questo import ora porta tutti i tipi generati
-import 'package:drift/drift.dart' hide Column; // Importa Value da drift
-import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:seg_medico2/auth/auth_service.dart'; // Per ottenere l'ID utente
+import 'package:seg_medico2/data/database.dart'; // Per accedere al database
+import 'package:seg_medico2/data/database.g.dart'; // *** NUOVO: Per HistoryEntriesCompanion ***
+import 'package:drift/drift.dart' as d; // Importa drift con un prefisso per evitare conflitti
 
-class EditMedicationPage extends StatefulWidget {
-  final AppDatabase db;
-  final String userId;
-  final Medication? existingMedication; // Il tipo Medication è ora riconosciuto
-
-  const EditMedicationPage({
-    super.key,
-    required this.db,
-    required this.userId,
-    this.existingMedication,
-  });
+class MedicationsPage extends StatefulWidget {
+  const MedicationsPage({super.key});
 
   @override
-  State<EditMedicationPage> createState() => _EditMedicationPageState();
+  State<MedicationsPage> createState() => _MedicationsPageState();
 }
 
-class _EditMedicationPageState extends State<EditMedicationPage> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _dosageController;
-  late TextEditingController _frequencyController;
-  DateTime? _nextDose; // Può essere null
+class _MedicationsPageState extends State<MedicationsPage> {
+  late String _currentUserId; // User ID
+  late AppDatabase _db; // Database instance
 
   @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.existingMedication?.name ?? '');
-    _dosageController = TextEditingController(text: widget.existingMedication?.dosage ?? '');
-    _frequencyController = TextEditingController(text: widget.existingMedication?.frequency ?? '');
-    _nextDose = widget.existingMedication?.nextDose;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ottieni l'ID utente dall'AuthService
+    _currentUserId = Provider.of<AuthService>(context).currentUserIdNotifier.value!;
+    // Ottieni l'istanza del database
+    _db = Provider.of<AppDatabase>(context);
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _dosageController.dispose();
-    _frequencyController.dispose();
-    super.dispose();
-  }
+  // Funzione di esempio per eliminare un farmaco e registrare l'azione
+  Future<void> _deleteMedication(String medicationId, String medicationName) async {
+    try {
+      // Esegui l'eliminazione dal database. Assicurati che il metodo accetti String.
+      await _db.deleteMedication(medicationId); // Questo metodo deve esistere in AppDatabase e accettare String
 
-  Future<void> _selectNextDoseDateTime(BuildContext context) async {
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _nextDose ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
-    );
-
-    if (pickedDate != null) {
-      final TimeOfDay? pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_nextDose ?? DateTime.now()),
+      // Registra l'azione nella cronologia
+      await _db.into(_db.historyEntries).insert(d.HistoryEntriesCompanion.insert( // Usato d.HistoryEntriesCompanion
+            userId: _currentUserId,
+            eventType: const d.Value('Farmaco'),
+            details: d.Value('Farmaco eliminato: $medicationName'),
+            timestamp: d.Value(DateTime.now()),
+          ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Farmaco "$medicationName" eliminato.')),
       );
-
-      if (pickedTime != null) {
-        setState(() {
-          _nextDose = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
-          );
-        });
-      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore durante l\'eliminazione: $e')),
+      );
     }
   }
 
-  void _saveMedication() async {
-    if (_formKey.currentState!.validate()) {
-      final name = _nameController.text;
-      final dosage = _dosageController.text;
-      final frequency = _frequencyController.text;
+  // Funzione di esempio per aggiornare lo stato di un farmaco e registrare l'azione
+  Future<void> _updateMedicationStatus(String medicationId, bool newStatus, String medicationName) async {
+    try {
+      // Esegui l'aggiornamento nel database. Assicurati che il metodo accetti String.
+      await _db.updateMedicationStatus(medicationId, newStatus); // Questo metodo deve esistere in AppDatabase e accettare String
 
-      final companion = MedicationsCompanion( // Ora riconosciuto
-        userId: Value(widget.userId),
-        name: Value(name),
-        dosage: Value(dosage.isEmpty ? null : dosage),
-        frequency: Value(frequency.isEmpty ? null : frequency),
-        nextDose: Value(_nextDose),
-        isActive: Value(widget.existingMedication?.isActive ?? true),
+      String details = newStatus ? 'Farmaco attivo: $medicationName' : 'Farmaco inattivo: $medicationName';
+
+      // Registra l'azione nella cronologia
+      await _db.into(_db.historyEntries).insert(d.HistoryEntriesCompanion.insert( // Usato d.HistoryEntriesCompanion
+            userId: _currentUserId,
+            eventType: const d.Value('Stato Farmaco'),
+            details: d.Value(details),
+            timestamp: d.Value(DateTime.now()),
+          ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stato farmaco "$medicationName" aggiornato.')),
       );
-
-      if (widget.existingMedication == null) {
-        await widget.db.addMedication(companion);
-        await widget.db.addHistoryEntry(
-          HistoryEntriesCompanion( // Ora riconosciuto
-            userId: Value(widget.userId),
-            timestamp: Value(DateTime.now()),
-            type: const Value('medication_added'),
-            description: Value('Nuovo farmaco aggiunto: $name'),
-          ),
-        );
-      } else {
-        await widget.db.updateMedication(companion.copyWith(id: Value(widget.existingMedication!.id)));
-        await widget.db.addHistoryEntry(
-          HistoryEntriesCompanion( // Ora riconosciuto
-            userId: Value(widget.userId),
-            timestamp: Value(DateTime.now()),
-            type: const Value('medication_updated'),
-            description: Value('Farmaco aggiornato: $name'),
-          ),
-        );
-      }
-      Navigator.pop(context, true); // Ritorna true per indicare il successo
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore durante l\'aggiornamento dello stato: $e')),
+      );
     }
   }
 
@@ -117,49 +77,45 @@ class _EditMedicationPageState extends State<EditMedicationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existingMedication == null ? 'Nuovo Farmaco' : 'Modifica Farmaco'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nome Farmaco'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Inserisci il nome del farmaco';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _dosageController,
-                decoration: const InputDecoration(labelText: 'Dosaggio (es. 5mg, 1 compressa)'),
-              ),
-              TextFormField(
-                controller: _frequencyController,
-                decoration: const InputDecoration(labelText: 'Frequenza (es. 2 volte al giorno, ogni 8 ore)'),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                title: Text(
-                  _nextDose == null
-                      ? 'Seleziona Prossima Dose'
-                      : 'Prossima Dose: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextDose!)}',
-                ),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _selectNextDoseDateTime(context),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _saveMedication,
-                child: Text(widget.existingMedication == null ? 'Aggiungi Farmaco' : 'Salva Modifiche'),
-              ),
-            ],
+        title: const Text('Farmaci', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.blueAccent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(20),
           ),
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            const Icon(Icons.medical_services, size: 80, color: Colors.green),
+            const SizedBox(height: 20),
+            const Text(
+              'Questa è la pagina dei Farmaci.',
+              style: TextStyle(fontSize: 20, color: Colors.blueGrey),
+            ),
+            const Text(
+              'Qui potrai gestire i farmaci e le prescrizioni.',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 20),
+            // Esempio di come potresti usare le funzioni (da rimuovere in produzione)
+            ElevatedButton(
+              onPressed: () {
+                _deleteMedication('some_id_med', 'Paracetamolo');
+              },
+              child: const Text('Simula Eliminazione Farmaco'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _updateMedicationStatus('another_id_med', false, 'Ibuprofene');
+              },
+              child: const Text('Simula Inattivazione Farmaco'),
+            ),
+            Text('Current User ID: $_currentUserId'), // Mostra l'ID utente per debug
+          ],
         ),
       ),
     );
