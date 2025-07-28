@@ -1,8 +1,9 @@
 // lib/settings_page.dart
+
 import 'package:flutter/material.dart';
+import 'package:drift/drift.dart' hide Column;
 import 'package:seg_medico2/data/database.dart';
-import 'package:seg_medico2/main.dart';
-import 'package:drift/drift.dart' hide Column; // Import Value for explicit nulls if needed
+import 'package:seg_medico2/theme_notifier.dart'; // Importa ThemeNotifier
 
 class SettingsPage extends StatefulWidget {
   final AppDatabase db;
@@ -15,231 +16,227 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late AppDatabase _db;
-  late String _currentUserId;
+  late final AppDatabase _database;
+  late final String _currentUserId;
   Profile? _userProfile;
 
-  // Default values for settings
   bool _receiveReminders = true;
   int _reminderTimeMinutesBefore = 30;
   int _recipeAlertDays = 7;
-  int _appointmentReminderDaysBefore = 1;
-  String _selectedTheme = 'system'; // 'system', 'light', 'dark'
+  int _appointmentReminderDaysBefore = 1; // Corretto il nome della variabile
+  String _selectedTheme = 'system';
+  double _homepageFontSizeScale = 1.0;
 
   @override
   void initState() {
     super.initState();
-    _db = widget.db;
+    _database = widget.db;
     _currentUserId = widget.userId;
     _loadProfileSettings();
   }
 
   Future<void> _loadProfileSettings() async {
-    _db.watchProfileForUser(_currentUserId).listen((profile) {
-      if (profile != null) {
-        setState(() {
-          _userProfile = profile;
-          _receiveReminders = profile.receiveReminders;
-          _reminderTimeMinutesBefore = profile.reminderTimeMinutesBefore;
-          _recipeAlertDays = profile.recipeAlertDays;
-          _appointmentReminderDaysBefore = profile.appointmentReminderDaysBefore;
-          _selectedTheme = profile.selectedTheme;
-        });
-      }
-    });
+    final profile = await _database.getProfileForUser(_currentUserId);
+    if (profile != null) {
+      setState(() {
+        _userProfile = profile;
+        _receiveReminders = profile.receiveReminders;
+        _reminderTimeMinutesBefore = profile.reminderTimeMinutesBefore;
+        _recipeAlertDays = profile.recipeAlertDays;
+        _appointmentReminderDaysBefore = profile.appointmentReminderDaysBefore;
+        _selectedTheme = profile.selectedTheme;
+        _homepageFontSizeScale = profile.homepageFontSizeScale.toDouble(); // Assicurati che sia double
+      });
+    }
   }
 
-  Future<void> _updateProfileSettings() async {
+  Future<void> _saveSettings() async {
     final updatedProfile = ProfilesCompanion(
-      userId: Value(_currentUserId), // userId is the primary key, so use Value() for updates
+      userId: Value(_currentUserId),
       receiveReminders: Value(_receiveReminders),
       reminderTimeMinutesBefore: Value(_reminderTimeMinutesBefore),
       recipeAlertDays: Value(_recipeAlertDays),
-      appointmentReminderDaysBefore: Value(_appointmentDaysBefore), // This should be `_appointmentReminderDaysBefore`
+      appointmentReminderDaysBefore: Value(_appointmentReminderDaysBefore),
       selectedTheme: Value(_selectedTheme),
+      homepageFontSizeScale: Value(_homepageFontSizeScale),
     );
-    await _db.updateProfile(updatedProfile);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Impostazioni salvate!')),
-    );
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final double fontSizeScale = _userProfile?.granularFontSizeScale ?? 1.0;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Impostazioni'),
-        centerTitle: true,
-      ),
-      body: _userProfile == null
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: [
-                SwitchListTile(
-                  title: Text('Ricevi Promemoria', style: TextStyle(fontSize: 18 * fontSizeScale)),
-                  value: _receiveReminders,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _receiveReminders = value;
-                    });
-                    _updateProfileSettings();
-                  },
-                ),
-                ListTile(
-                  title: Text('Minuti prima del promemoria (farmaci)', style: TextStyle(fontSize: 18 * fontSizeScale)),
-                  trailing: DropdownButton<int>(
-                    value: _reminderTimeMinutesBefore,
-                    items: <int>[5, 10, 15, 30, 60, 120]
-                        .map<DropdownMenuItem<int>>((int value) {
-                      return DropdownMenuItem<int>(
-                        value: value,
-                        child: Text('$value', style: TextStyle(fontSize: 16 * fontSizeScale)),
-                      );
-                    }).toList(),
-                    onChanged: (int? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _reminderTimeMinutesBefore = newValue;
-                        });
-                        _updateProfileSettings();
-                      }
-                    },
-                  ),
-                ),
-                ListTile(
-                  title: Text('Giorni avviso scadenza ricetta', style: TextStyle(fontSize: 18 * fontSizeScale)),
-                  trailing: DropdownButton<int>(
-                    value: _recipeAlertDays,
-                    items: <int>[1, 3, 7, 14, 30]
-                        .map<DropdownMenuItem<int>>((int value) {
-                      return DropdownMenuItem<int>(
-                        value: value,
-                        child: Text('$value', style: TextStyle(fontSize: 16 * fontSizeScale)),
-                      );
-                    }).toList(),
-                    onChanged: (int? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _recipeAlertDays = newValue;
-                        });
-                        _updateProfileSettings();
-                      }
-                    },
-                  ),
-                ),
-                ListTile(
-                  title: Text('Giorni avviso appuntamento', style: TextStyle(fontSize: 18 * fontSizeScale)),
-                  trailing: DropdownButton<int>(
-                    value: _appointmentReminderDaysBefore,
-                    items: <int>[0, 1, 2, 3, 7] // 0 means same day
-                        .map<DropdownMenuItem<int>>((int value) {
-                      return DropdownMenuItem<int>(
-                        value: value,
-                        child: Text('$value', style: TextStyle(fontSize: 16 * fontSizeScale)),
-                      );
-                    }).toList(),
-                    onChanged: (int? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _appointmentReminderDaysBefore = newValue;
-                        });
-                        _updateProfileSettings();
-                      }
-                    },
-                  ),
-                ),
-                ListTile(
-                  title: Text('Tema App', style: TextStyle(fontSize: 18 * fontSizeScale)),
-                  trailing: DropdownButton<String>(
-                    value: _selectedTheme,
-                    items: <String>['system', 'light', 'dark']
-                        .map<DropdownMenuItem<String>>((String value) {
-                      String displayText;
-                      switch (value) {
-                        case 'system':
-                          displayText = 'Sistema';
-                          break;
-                        case 'light':
-                          displayText = 'Chiaro';
-                          break;
-                        case 'dark':
-                          displayText = 'Scuro';
-                          break;
-                        default:
-                          displayText = 'Sistema';
-                      }
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(displayText, style: TextStyle(fontSize: 16 * fontSizeScale)),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _selectedTheme = newValue;
-                        });
-                        // Apply theme change immediately for visual feedback
-                        _applyTheme(newValue);
-                        _updateProfileSettings();
-                      }
-                    },
-                  ),
-                ),
-                Slider(
-                  value: fontSizeScale,
-                  min: 0.8,
-                  max: 1.5,
-                  divisions: 7,
-                  label: fontSizeScale.toStringAsFixed(1),
-                  onChanged: (double value) {
-                    setState(() {
-                      // We don't save granularFontSizeScale via _updateProfileSettings directly here
-                      // since it's handled by a separate update operation.
-                      // This ensures the slider updates visually.
-                    });
-                  },
-                  onChangeEnd: (double value) async {
-                    // Save granularFontSizeScale only when the user finishes dragging
-                    final updatedProfile = ProfilesCompanion(
-                      userId: Value(_currentUserId),
-                      granularFontSizeScale: Value(value),
-                    );
-                    await _db.updateProfile(updatedProfile);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Scala font aggiornata!')),
-                    );
-                  },
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Text(
-                    'Dimensione Testo: ${fontSizeScale.toStringAsFixed(1)}x',
-                    style: TextStyle(fontSize: 16 * fontSizeScale),
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-
-  void _applyTheme(String themeName) {
+    await _database.updateProfile(updatedProfile);
+    _showMessage('Impostazioni salvate con successo!');
+    _loadProfileSettings(); // Ricarica per assicurarsi che lo stato sia aggiornato
+    // Applica il tema immediatamente
     ThemeMode themeMode;
-    switch (themeName) {
+    switch (_selectedTheme) {
       case 'light':
         themeMode = ThemeMode.light;
         break;
       case 'dark':
         themeMode = ThemeMode.dark;
         break;
-      case 'system':
       default:
         themeMode = ThemeMode.system;
-        break;
     }
-    // Access the MyApp state to change the theme
-    MyApp.of(context).setThemeMode(themeMode);
+    // Usa ThemeNotifier per cambiare il tema
+    ThemeNotifier.of(context).setThemeMode(themeMode);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Impostazioni'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      ),
+      body: _userProfile == null
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ListView(
+                children: [
+                  // Dimensione testo
+                  ListTile(
+                    title: const Text('Dimensione testo:'),
+                    trailing: DropdownButton<double>(
+                      value: _homepageFontSizeScale,
+                      onChanged: (double? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _homepageFontSizeScale = newValue;
+                          });
+                        }
+                      },
+                      items: const <double>[0.8, 1.0, 1.2, 1.5]
+                          .map<DropdownMenuItem<double>>((double value) {
+                        return DropdownMenuItem<double>(
+                          value: value,
+                          child: Text('${(value * 100).toInt()}%'),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const Divider(),
+                  // Promemoria Farmaci
+                  SwitchListTile(
+                    title: const Text('Ricevi promemoria farmaci'),
+                    value: _receiveReminders,
+                    onChanged: (bool value) {
+                      setState(() {
+                        _receiveReminders = value;
+                      });
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('Promemoria farmaci (minuti prima)'),
+                    trailing: DropdownButton<int>(
+                      value: _reminderTimeMinutesBefore,
+                      onChanged: (int? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _reminderTimeMinutesBefore = newValue;
+                          });
+                        }
+                      },
+                      items: const <int>[15, 30, 60, 120]
+                          .map<DropdownMenuItem<int>>((int value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text('$value min'),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  ListTile(
+                    title: const Text('Avviso ricetta (giorni prima)'),
+                    trailing: DropdownButton<int>(
+                      value: _recipeAlertDays,
+                      onChanged: (int? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _recipeAlertDays = newValue;
+                          });
+                        }
+                      },
+                      items: const <int>[1, 3, 7, 14, 30]
+                          .map<DropdownMenuItem<int>>((int value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text('$value giorni'),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const Divider(),
+                  // Promemoria Appuntamenti
+                  ListTile(
+                    title: const Text('Promemoria appuntamenti (giorni prima)'),
+                    trailing: DropdownButton<int>(
+                      value: _appointmentReminderDaysBefore,
+                      onChanged: (int? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _appointmentReminderDaysBefore = newValue;
+                          });
+                        }
+                      },
+                      items: const <int>[0, 1, 2, 3, 7] // 0 per "il giorno stesso"
+                          .map<DropdownMenuItem<int>>((int value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text('$value giorni'),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const Divider(),
+                  // Tema
+                  ListTile(
+                    title: const Text('Tema:'),
+                    trailing: DropdownButton<String>(
+                      value: _selectedTheme,
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _selectedTheme = newValue;
+                          });
+                        }
+                      },
+                      items: const <String>['system', 'light', 'dark']
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value == 'system' ? 'Sistema' : (value == 'light' ? 'Chiaro' : 'Scuro')),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      ElevatedButton(
+                        onPressed: _saveSettings,
+                        child: const Text('Salva'),
+                      ),
+                      OutlinedButton(
+                        onPressed: () {
+                          // Annulla le modifiche e torna indietro
+                          _loadProfileSettings(); // Ricarica le impostazioni originali
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Annulla'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+    );
   }
 }

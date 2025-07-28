@@ -302,6 +302,14 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('system'));
+  static const VerificationMeta _homepageFontSizeScaleMeta =
+      const VerificationMeta('homepageFontSizeScale');
+  @override
+  late final GeneratedColumn<double> homepageFontSizeScale =
+      GeneratedColumn<double>('homepage_font_size_scale', aliasedName, false,
+          type: DriftSqlType.double,
+          requiredDuringInsert: false,
+          defaultValue: const Constant(1.0));
   @override
   List<GeneratedColumn> get $columns => [
         userId,
@@ -310,7 +318,8 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
         reminderTimeMinutesBefore,
         recipeAlertDays,
         appointmentReminderDaysBefore,
-        selectedTheme
+        selectedTheme,
+        homepageFontSizeScale
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -366,6 +375,12 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
           selectedTheme.isAcceptableOrUnknown(
               data['selected_theme']!, _selectedThemeMeta));
     }
+    if (data.containsKey('homepage_font_size_scale')) {
+      context.handle(
+          _homepageFontSizeScaleMeta,
+          homepageFontSizeScale.isAcceptableOrUnknown(
+              data['homepage_font_size_scale']!, _homepageFontSizeScaleMeta));
+    }
     return context;
   }
 
@@ -392,6 +407,9 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
           data['${effectivePrefix}appointment_reminder_days_before'])!,
       selectedTheme: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}selected_theme'])!,
+      homepageFontSizeScale: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}homepage_font_size_scale'])!,
     );
   }
 
@@ -409,6 +427,7 @@ class Profile extends DataClass implements Insertable<Profile> {
   final int recipeAlertDays;
   final int appointmentReminderDaysBefore;
   final String selectedTheme;
+  final double homepageFontSizeScale;
   const Profile(
       {required this.userId,
       required this.granularFontSizeScale,
@@ -416,7 +435,8 @@ class Profile extends DataClass implements Insertable<Profile> {
       required this.reminderTimeMinutesBefore,
       required this.recipeAlertDays,
       required this.appointmentReminderDaysBefore,
-      required this.selectedTheme});
+      required this.selectedTheme,
+      required this.homepageFontSizeScale});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -429,6 +449,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     map['appointment_reminder_days_before'] =
         Variable<int>(appointmentReminderDaysBefore);
     map['selected_theme'] = Variable<String>(selectedTheme);
+    map['homepage_font_size_scale'] = Variable<double>(homepageFontSizeScale);
     return map;
   }
 
@@ -441,6 +462,7 @@ class Profile extends DataClass implements Insertable<Profile> {
       recipeAlertDays: Value(recipeAlertDays),
       appointmentReminderDaysBefore: Value(appointmentReminderDaysBefore),
       selectedTheme: Value(selectedTheme),
+      homepageFontSizeScale: Value(homepageFontSizeScale),
     );
   }
 
@@ -458,6 +480,8 @@ class Profile extends DataClass implements Insertable<Profile> {
       appointmentReminderDaysBefore:
           serializer.fromJson<int>(json['appointmentReminderDaysBefore']),
       selectedTheme: serializer.fromJson<String>(json['selectedTheme']),
+      homepageFontSizeScale:
+          serializer.fromJson<double>(json['homepageFontSizeScale']),
     );
   }
   @override
@@ -473,6 +497,7 @@ class Profile extends DataClass implements Insertable<Profile> {
       'appointmentReminderDaysBefore':
           serializer.toJson<int>(appointmentReminderDaysBefore),
       'selectedTheme': serializer.toJson<String>(selectedTheme),
+      'homepageFontSizeScale': serializer.toJson<double>(homepageFontSizeScale),
     };
   }
 
@@ -483,7 +508,8 @@ class Profile extends DataClass implements Insertable<Profile> {
           int? reminderTimeMinutesBefore,
           int? recipeAlertDays,
           int? appointmentReminderDaysBefore,
-          String? selectedTheme}) =>
+          String? selectedTheme,
+          double? homepageFontSizeScale}) =>
       Profile(
         userId: userId ?? this.userId,
         granularFontSizeScale:
@@ -495,6 +521,8 @@ class Profile extends DataClass implements Insertable<Profile> {
         appointmentReminderDaysBefore:
             appointmentReminderDaysBefore ?? this.appointmentReminderDaysBefore,
         selectedTheme: selectedTheme ?? this.selectedTheme,
+        homepageFontSizeScale:
+            homepageFontSizeScale ?? this.homepageFontSizeScale,
       );
   Profile copyWithCompanion(ProfilesCompanion data) {
     return Profile(
@@ -517,6 +545,9 @@ class Profile extends DataClass implements Insertable<Profile> {
       selectedTheme: data.selectedTheme.present
           ? data.selectedTheme.value
           : this.selectedTheme,
+      homepageFontSizeScale: data.homepageFontSizeScale.present
+          ? data.homepageFontSizeScale.value
+          : this.homepageFontSizeScale,
     );
   }
 
@@ -530,7 +561,8 @@ class Profile extends DataClass implements Insertable<Profile> {
           ..write('recipeAlertDays: $recipeAlertDays, ')
           ..write(
               'appointmentReminderDaysBefore: $appointmentReminderDaysBefore, ')
-          ..write('selectedTheme: $selectedTheme')
+          ..write('selectedTheme: $selectedTheme, ')
+          ..write('homepageFontSizeScale: $homepageFontSizeScale')
           ..write(')'))
         .toString();
   }
@@ -543,7 +575,8 @@ class Profile extends DataClass implements Insertable<Profile> {
       reminderTimeMinutesBefore,
       recipeAlertDays,
       appointmentReminderDaysBefore,
-      selectedTheme);
+      selectedTheme,
+      homepageFontSizeScale);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -555,7 +588,8 @@ class Profile extends DataClass implements Insertable<Profile> {
           other.recipeAlertDays == this.recipeAlertDays &&
           other.appointmentReminderDaysBefore ==
               this.appointmentReminderDaysBefore &&
-          other.selectedTheme == this.selectedTheme);
+          other.selectedTheme == this.selectedTheme &&
+          other.homepageFontSizeScale == this.homepageFontSizeScale);
 }
 
 class ProfilesCompanion extends UpdateCompanion<Profile> {
@@ -566,6 +600,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
   final Value<int> recipeAlertDays;
   final Value<int> appointmentReminderDaysBefore;
   final Value<String> selectedTheme;
+  final Value<double> homepageFontSizeScale;
   final Value<int> rowid;
   const ProfilesCompanion({
     this.userId = const Value.absent(),
@@ -575,6 +610,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.recipeAlertDays = const Value.absent(),
     this.appointmentReminderDaysBefore = const Value.absent(),
     this.selectedTheme = const Value.absent(),
+    this.homepageFontSizeScale = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProfilesCompanion.insert({
@@ -585,6 +621,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.recipeAlertDays = const Value.absent(),
     this.appointmentReminderDaysBefore = const Value.absent(),
     this.selectedTheme = const Value.absent(),
+    this.homepageFontSizeScale = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : userId = Value(userId);
   static Insertable<Profile> custom({
@@ -595,6 +632,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Expression<int>? recipeAlertDays,
     Expression<int>? appointmentReminderDaysBefore,
     Expression<String>? selectedTheme,
+    Expression<double>? homepageFontSizeScale,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -608,6 +646,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       if (appointmentReminderDaysBefore != null)
         'appointment_reminder_days_before': appointmentReminderDaysBefore,
       if (selectedTheme != null) 'selected_theme': selectedTheme,
+      if (homepageFontSizeScale != null)
+        'homepage_font_size_scale': homepageFontSizeScale,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -620,6 +660,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       Value<int>? recipeAlertDays,
       Value<int>? appointmentReminderDaysBefore,
       Value<String>? selectedTheme,
+      Value<double>? homepageFontSizeScale,
       Value<int>? rowid}) {
     return ProfilesCompanion(
       userId: userId ?? this.userId,
@@ -632,6 +673,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       appointmentReminderDaysBefore:
           appointmentReminderDaysBefore ?? this.appointmentReminderDaysBefore,
       selectedTheme: selectedTheme ?? this.selectedTheme,
+      homepageFontSizeScale:
+          homepageFontSizeScale ?? this.homepageFontSizeScale,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -663,6 +706,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     if (selectedTheme.present) {
       map['selected_theme'] = Variable<String>(selectedTheme.value);
     }
+    if (homepageFontSizeScale.present) {
+      map['homepage_font_size_scale'] =
+          Variable<double>(homepageFontSizeScale.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -680,6 +727,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
           ..write(
               'appointmentReminderDaysBefore: $appointmentReminderDaysBefore, ')
           ..write('selectedTheme: $selectedTheme, ')
+          ..write('homepageFontSizeScale: $homepageFontSizeScale, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -725,6 +773,35 @@ class $MedicationsTable extends Medications
           GeneratedColumn.checkTextLength(minTextLength: 0, maxTextLength: 50),
       type: DriftSqlType.string,
       requiredDuringInsert: false);
+  static const VerificationMeta _frequencyMeta =
+      const VerificationMeta('frequency');
+  @override
+  late final GeneratedColumn<String> frequency = GeneratedColumn<String>(
+      'frequency', aliasedName, false,
+      additionalChecks:
+          GeneratedColumn.checkTextLength(minTextLength: 1, maxTextLength: 50),
+      type: DriftSqlType.string,
+      requiredDuringInsert: true);
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+      'notes', aliasedName, false,
+      additionalChecks:
+          GeneratedColumn.checkTextLength(minTextLength: 0, maxTextLength: 500),
+      type: DriftSqlType.string,
+      requiredDuringInsert: true);
+  static const VerificationMeta _startDateMeta =
+      const VerificationMeta('startDate');
+  @override
+  late final GeneratedColumn<DateTime> startDate = GeneratedColumn<DateTime>(
+      'start_date', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _endDateMeta =
+      const VerificationMeta('endDate');
+  @override
+  late final GeneratedColumn<DateTime> endDate = GeneratedColumn<DateTime>(
+      'end_date', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
   static const VerificationMeta _nextDoseMeta =
       const VerificationMeta('nextDose');
   @override
@@ -732,7 +809,17 @@ class $MedicationsTable extends Medications
       'next_dose', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
-  List<GeneratedColumn> get $columns => [id, userId, name, dosage, nextDose];
+  List<GeneratedColumn> get $columns => [
+        id,
+        userId,
+        name,
+        dosage,
+        frequency,
+        notes,
+        startDate,
+        endDate,
+        nextDose
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -762,6 +849,30 @@ class $MedicationsTable extends Medications
       context.handle(_dosageMeta,
           dosage.isAcceptableOrUnknown(data['dosage']!, _dosageMeta));
     }
+    if (data.containsKey('frequency')) {
+      context.handle(_frequencyMeta,
+          frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta));
+    } else if (isInserting) {
+      context.missing(_frequencyMeta);
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+          _notesMeta, notes.isAcceptableOrUnknown(data['notes']!, _notesMeta));
+    } else if (isInserting) {
+      context.missing(_notesMeta);
+    }
+    if (data.containsKey('start_date')) {
+      context.handle(_startDateMeta,
+          startDate.isAcceptableOrUnknown(data['start_date']!, _startDateMeta));
+    } else if (isInserting) {
+      context.missing(_startDateMeta);
+    }
+    if (data.containsKey('end_date')) {
+      context.handle(_endDateMeta,
+          endDate.isAcceptableOrUnknown(data['end_date']!, _endDateMeta));
+    } else if (isInserting) {
+      context.missing(_endDateMeta);
+    }
     if (data.containsKey('next_dose')) {
       context.handle(_nextDoseMeta,
           nextDose.isAcceptableOrUnknown(data['next_dose']!, _nextDoseMeta));
@@ -783,6 +894,14 @@ class $MedicationsTable extends Medications
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       dosage: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}dosage']),
+      frequency: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}frequency'])!,
+      notes: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}notes'])!,
+      startDate: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}start_date'])!,
+      endDate: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}end_date'])!,
       nextDose: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}next_dose']),
     );
@@ -799,12 +918,20 @@ class Medication extends DataClass implements Insertable<Medication> {
   final String userId;
   final String name;
   final String? dosage;
+  final String frequency;
+  final String notes;
+  final DateTime startDate;
+  final DateTime endDate;
   final DateTime? nextDose;
   const Medication(
       {required this.id,
       required this.userId,
       required this.name,
       this.dosage,
+      required this.frequency,
+      required this.notes,
+      required this.startDate,
+      required this.endDate,
       this.nextDose});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -815,6 +942,10 @@ class Medication extends DataClass implements Insertable<Medication> {
     if (!nullToAbsent || dosage != null) {
       map['dosage'] = Variable<String>(dosage);
     }
+    map['frequency'] = Variable<String>(frequency);
+    map['notes'] = Variable<String>(notes);
+    map['start_date'] = Variable<DateTime>(startDate);
+    map['end_date'] = Variable<DateTime>(endDate);
     if (!nullToAbsent || nextDose != null) {
       map['next_dose'] = Variable<DateTime>(nextDose);
     }
@@ -828,6 +959,10 @@ class Medication extends DataClass implements Insertable<Medication> {
       name: Value(name),
       dosage:
           dosage == null && nullToAbsent ? const Value.absent() : Value(dosage),
+      frequency: Value(frequency),
+      notes: Value(notes),
+      startDate: Value(startDate),
+      endDate: Value(endDate),
       nextDose: nextDose == null && nullToAbsent
           ? const Value.absent()
           : Value(nextDose),
@@ -842,6 +977,10 @@ class Medication extends DataClass implements Insertable<Medication> {
       userId: serializer.fromJson<String>(json['userId']),
       name: serializer.fromJson<String>(json['name']),
       dosage: serializer.fromJson<String?>(json['dosage']),
+      frequency: serializer.fromJson<String>(json['frequency']),
+      notes: serializer.fromJson<String>(json['notes']),
+      startDate: serializer.fromJson<DateTime>(json['startDate']),
+      endDate: serializer.fromJson<DateTime>(json['endDate']),
       nextDose: serializer.fromJson<DateTime?>(json['nextDose']),
     );
   }
@@ -853,6 +992,10 @@ class Medication extends DataClass implements Insertable<Medication> {
       'userId': serializer.toJson<String>(userId),
       'name': serializer.toJson<String>(name),
       'dosage': serializer.toJson<String?>(dosage),
+      'frequency': serializer.toJson<String>(frequency),
+      'notes': serializer.toJson<String>(notes),
+      'startDate': serializer.toJson<DateTime>(startDate),
+      'endDate': serializer.toJson<DateTime>(endDate),
       'nextDose': serializer.toJson<DateTime?>(nextDose),
     };
   }
@@ -862,12 +1005,20 @@ class Medication extends DataClass implements Insertable<Medication> {
           String? userId,
           String? name,
           Value<String?> dosage = const Value.absent(),
+          String? frequency,
+          String? notes,
+          DateTime? startDate,
+          DateTime? endDate,
           Value<DateTime?> nextDose = const Value.absent()}) =>
       Medication(
         id: id ?? this.id,
         userId: userId ?? this.userId,
         name: name ?? this.name,
         dosage: dosage.present ? dosage.value : this.dosage,
+        frequency: frequency ?? this.frequency,
+        notes: notes ?? this.notes,
+        startDate: startDate ?? this.startDate,
+        endDate: endDate ?? this.endDate,
         nextDose: nextDose.present ? nextDose.value : this.nextDose,
       );
   Medication copyWithCompanion(MedicationsCompanion data) {
@@ -876,6 +1027,10 @@ class Medication extends DataClass implements Insertable<Medication> {
       userId: data.userId.present ? data.userId.value : this.userId,
       name: data.name.present ? data.name.value : this.name,
       dosage: data.dosage.present ? data.dosage.value : this.dosage,
+      frequency: data.frequency.present ? data.frequency.value : this.frequency,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      startDate: data.startDate.present ? data.startDate.value : this.startDate,
+      endDate: data.endDate.present ? data.endDate.value : this.endDate,
       nextDose: data.nextDose.present ? data.nextDose.value : this.nextDose,
     );
   }
@@ -887,13 +1042,18 @@ class Medication extends DataClass implements Insertable<Medication> {
           ..write('userId: $userId, ')
           ..write('name: $name, ')
           ..write('dosage: $dosage, ')
+          ..write('frequency: $frequency, ')
+          ..write('notes: $notes, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
           ..write('nextDose: $nextDose')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, userId, name, dosage, nextDose);
+  int get hashCode => Object.hash(
+      id, userId, name, dosage, frequency, notes, startDate, endDate, nextDose);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -902,6 +1062,10 @@ class Medication extends DataClass implements Insertable<Medication> {
           other.userId == this.userId &&
           other.name == this.name &&
           other.dosage == this.dosage &&
+          other.frequency == this.frequency &&
+          other.notes == this.notes &&
+          other.startDate == this.startDate &&
+          other.endDate == this.endDate &&
           other.nextDose == this.nextDose);
 }
 
@@ -910,12 +1074,20 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
   final Value<String> userId;
   final Value<String> name;
   final Value<String?> dosage;
+  final Value<String> frequency;
+  final Value<String> notes;
+  final Value<DateTime> startDate;
+  final Value<DateTime> endDate;
   final Value<DateTime?> nextDose;
   const MedicationsCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
     this.name = const Value.absent(),
     this.dosage = const Value.absent(),
+    this.frequency = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.endDate = const Value.absent(),
     this.nextDose = const Value.absent(),
   });
   MedicationsCompanion.insert({
@@ -923,14 +1095,26 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
     required String userId,
     required String name,
     this.dosage = const Value.absent(),
+    required String frequency,
+    required String notes,
+    required DateTime startDate,
+    required DateTime endDate,
     this.nextDose = const Value.absent(),
   })  : userId = Value(userId),
-        name = Value(name);
+        name = Value(name),
+        frequency = Value(frequency),
+        notes = Value(notes),
+        startDate = Value(startDate),
+        endDate = Value(endDate);
   static Insertable<Medication> custom({
     Expression<int>? id,
     Expression<String>? userId,
     Expression<String>? name,
     Expression<String>? dosage,
+    Expression<String>? frequency,
+    Expression<String>? notes,
+    Expression<DateTime>? startDate,
+    Expression<DateTime>? endDate,
     Expression<DateTime>? nextDose,
   }) {
     return RawValuesInsertable({
@@ -938,6 +1122,10 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
       if (userId != null) 'user_id': userId,
       if (name != null) 'name': name,
       if (dosage != null) 'dosage': dosage,
+      if (frequency != null) 'frequency': frequency,
+      if (notes != null) 'notes': notes,
+      if (startDate != null) 'start_date': startDate,
+      if (endDate != null) 'end_date': endDate,
       if (nextDose != null) 'next_dose': nextDose,
     });
   }
@@ -947,12 +1135,20 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
       Value<String>? userId,
       Value<String>? name,
       Value<String?>? dosage,
+      Value<String>? frequency,
+      Value<String>? notes,
+      Value<DateTime>? startDate,
+      Value<DateTime>? endDate,
       Value<DateTime?>? nextDose}) {
     return MedicationsCompanion(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       name: name ?? this.name,
       dosage: dosage ?? this.dosage,
+      frequency: frequency ?? this.frequency,
+      notes: notes ?? this.notes,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
       nextDose: nextDose ?? this.nextDose,
     );
   }
@@ -972,6 +1168,18 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
     if (dosage.present) {
       map['dosage'] = Variable<String>(dosage.value);
     }
+    if (frequency.present) {
+      map['frequency'] = Variable<String>(frequency.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (startDate.present) {
+      map['start_date'] = Variable<DateTime>(startDate.value);
+    }
+    if (endDate.present) {
+      map['end_date'] = Variable<DateTime>(endDate.value);
+    }
     if (nextDose.present) {
       map['next_dose'] = Variable<DateTime>(nextDose.value);
     }
@@ -985,6 +1193,10 @@ class MedicationsCompanion extends UpdateCompanion<Medication> {
           ..write('userId: $userId, ')
           ..write('name: $name, ')
           ..write('dosage: $dosage, ')
+          ..write('frequency: $frequency, ')
+          ..write('notes: $notes, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
           ..write('nextDose: $nextDose')
           ..write(')'))
         .toString();
@@ -2212,6 +2424,7 @@ typedef $$ProfilesTableCreateCompanionBuilder = ProfilesCompanion Function({
   Value<int> recipeAlertDays,
   Value<int> appointmentReminderDaysBefore,
   Value<String> selectedTheme,
+  Value<double> homepageFontSizeScale,
   Value<int> rowid,
 });
 typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
@@ -2222,6 +2435,7 @@ typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
   Value<int> recipeAlertDays,
   Value<int> appointmentReminderDaysBefore,
   Value<String> selectedTheme,
+  Value<double> homepageFontSizeScale,
   Value<int> rowid,
 });
 
@@ -2275,6 +2489,10 @@ class $$ProfilesTableFilterComposer
 
   ColumnFilters<String> get selectedTheme => $composableBuilder(
       column: $table.selectedTheme, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get homepageFontSizeScale => $composableBuilder(
+      column: $table.homepageFontSizeScale,
+      builder: (column) => ColumnFilters(column));
 
   $$UsersTableFilterComposer get userId {
     final $$UsersTableFilterComposer composer = $composerBuilder(
@@ -2330,6 +2548,10 @@ class $$ProfilesTableOrderingComposer
       column: $table.selectedTheme,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get homepageFontSizeScale => $composableBuilder(
+      column: $table.homepageFontSizeScale,
+      builder: (column) => ColumnOrderings(column));
+
   $$UsersTableOrderingComposer get userId {
     final $$UsersTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -2378,6 +2600,9 @@ class $$ProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get selectedTheme => $composableBuilder(
       column: $table.selectedTheme, builder: (column) => column);
+
+  GeneratedColumn<double> get homepageFontSizeScale => $composableBuilder(
+      column: $table.homepageFontSizeScale, builder: (column) => column);
 
   $$UsersTableAnnotationComposer get userId {
     final $$UsersTableAnnotationComposer composer = $composerBuilder(
@@ -2430,6 +2655,7 @@ class $$ProfilesTableTableManager extends RootTableManager<
             Value<int> recipeAlertDays = const Value.absent(),
             Value<int> appointmentReminderDaysBefore = const Value.absent(),
             Value<String> selectedTheme = const Value.absent(),
+            Value<double> homepageFontSizeScale = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProfilesCompanion(
@@ -2440,6 +2666,7 @@ class $$ProfilesTableTableManager extends RootTableManager<
             recipeAlertDays: recipeAlertDays,
             appointmentReminderDaysBefore: appointmentReminderDaysBefore,
             selectedTheme: selectedTheme,
+            homepageFontSizeScale: homepageFontSizeScale,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -2450,6 +2677,7 @@ class $$ProfilesTableTableManager extends RootTableManager<
             Value<int> recipeAlertDays = const Value.absent(),
             Value<int> appointmentReminderDaysBefore = const Value.absent(),
             Value<String> selectedTheme = const Value.absent(),
+            Value<double> homepageFontSizeScale = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProfilesCompanion.insert(
@@ -2460,6 +2688,7 @@ class $$ProfilesTableTableManager extends RootTableManager<
             recipeAlertDays: recipeAlertDays,
             appointmentReminderDaysBefore: appointmentReminderDaysBefore,
             selectedTheme: selectedTheme,
+            homepageFontSizeScale: homepageFontSizeScale,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -2521,6 +2750,10 @@ typedef $$MedicationsTableCreateCompanionBuilder = MedicationsCompanion
   required String userId,
   required String name,
   Value<String?> dosage,
+  required String frequency,
+  required String notes,
+  required DateTime startDate,
+  required DateTime endDate,
   Value<DateTime?> nextDose,
 });
 typedef $$MedicationsTableUpdateCompanionBuilder = MedicationsCompanion
@@ -2529,6 +2762,10 @@ typedef $$MedicationsTableUpdateCompanionBuilder = MedicationsCompanion
   Value<String> userId,
   Value<String> name,
   Value<String?> dosage,
+  Value<String> frequency,
+  Value<String> notes,
+  Value<DateTime> startDate,
+  Value<DateTime> endDate,
   Value<DateTime?> nextDose,
 });
 
@@ -2583,6 +2820,18 @@ class $$MedicationsTableFilterComposer
 
   ColumnFilters<String> get dosage => $composableBuilder(
       column: $table.dosage, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get frequency => $composableBuilder(
+      column: $table.frequency, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get notes => $composableBuilder(
+      column: $table.notes, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get startDate => $composableBuilder(
+      column: $table.startDate, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get endDate => $composableBuilder(
+      column: $table.endDate, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get nextDose => $composableBuilder(
       column: $table.nextDose, builder: (column) => ColumnFilters(column));
@@ -2647,6 +2896,18 @@ class $$MedicationsTableOrderingComposer
   ColumnOrderings<String> get dosage => $composableBuilder(
       column: $table.dosage, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get frequency => $composableBuilder(
+      column: $table.frequency, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+      column: $table.notes, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get startDate => $composableBuilder(
+      column: $table.startDate, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get endDate => $composableBuilder(
+      column: $table.endDate, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get nextDose => $composableBuilder(
       column: $table.nextDose, builder: (column) => ColumnOrderings(column));
 
@@ -2688,6 +2949,18 @@ class $$MedicationsTableAnnotationComposer
 
   GeneratedColumn<String> get dosage =>
       $composableBuilder(column: $table.dosage, builder: (column) => column);
+
+  GeneratedColumn<String> get frequency =>
+      $composableBuilder(column: $table.frequency, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startDate =>
+      $composableBuilder(column: $table.startDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endDate =>
+      $composableBuilder(column: $table.endDate, builder: (column) => column);
 
   GeneratedColumn<DateTime> get nextDose =>
       $composableBuilder(column: $table.nextDose, builder: (column) => column);
@@ -2761,6 +3034,10 @@ class $$MedicationsTableTableManager extends RootTableManager<
             Value<String> userId = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> dosage = const Value.absent(),
+            Value<String> frequency = const Value.absent(),
+            Value<String> notes = const Value.absent(),
+            Value<DateTime> startDate = const Value.absent(),
+            Value<DateTime> endDate = const Value.absent(),
             Value<DateTime?> nextDose = const Value.absent(),
           }) =>
               MedicationsCompanion(
@@ -2768,6 +3045,10 @@ class $$MedicationsTableTableManager extends RootTableManager<
             userId: userId,
             name: name,
             dosage: dosage,
+            frequency: frequency,
+            notes: notes,
+            startDate: startDate,
+            endDate: endDate,
             nextDose: nextDose,
           ),
           createCompanionCallback: ({
@@ -2775,6 +3056,10 @@ class $$MedicationsTableTableManager extends RootTableManager<
             required String userId,
             required String name,
             Value<String?> dosage = const Value.absent(),
+            required String frequency,
+            required String notes,
+            required DateTime startDate,
+            required DateTime endDate,
             Value<DateTime?> nextDose = const Value.absent(),
           }) =>
               MedicationsCompanion.insert(
@@ -2782,6 +3067,10 @@ class $$MedicationsTableTableManager extends RootTableManager<
             userId: userId,
             name: name,
             dosage: dosage,
+            frequency: frequency,
+            notes: notes,
+            startDate: startDate,
+            endDate: endDate,
             nextDose: nextDose,
           ),
           withReferenceMapper: (p0) => p0

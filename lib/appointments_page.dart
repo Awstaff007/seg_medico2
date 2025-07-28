@@ -1,109 +1,280 @@
 // lib/appointments_page.dart
+
 import 'package:flutter/material.dart';
-import 'package:seg_medico2/data/database.dart';
-import 'package:seg_medico2/main.dart'; // Import main.dart to access getCurrentUserId
-import 'package:drift/drift.dart' hide Column; // Import Value from drift, hide Column to avoid conflict
+import 'package:drift/drift.dart' hide Column; // Importa Value da drift
+import 'package:seg_medico2/data/database.dart'; // Importa il tuo database
 
 class AppointmentsPage extends StatefulWidget {
-  final AppDatabase db;
-  final String userId;
-
-  const AppointmentsPage({super.key, required this.db, required this.userId});
+  const AppointmentsPage({super.key});
 
   @override
   State<AppointmentsPage> createState() => _AppointmentsPageState();
 }
 
 class _AppointmentsPageState extends State<AppointmentsPage> {
-  late AppDatabase _db;
-  late String _currentUserId;
-  late Stream<List<Appointment>> _appointmentsStream;
-  Profile? _userProfile;
+  final AppDatabase _database = AppDatabase();
+  String? _currentUserId; // L'ID dell'utente corrente
 
   @override
-  void initState() {
-    super.initState();
-    _db = widget.db;
-    _currentUserId = widget.userId;
-    _loadProfileAndAppointments();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ottieni l'ID dell'utente corrente. Simile a MedicationsPage.
+    _currentUserId = 'test_user_id'; // Sostituisci con la logica reale del tuo utente
   }
 
-  Future<void> _loadProfileAndAppointments() async {
-    // Watch for profile changes
-    _db.watchProfileForUser(_currentUserId).listen((profile) {
-      if (profile != null) {
-        setState(() {
-          _userProfile = profile;
-        });
-      }
-    });
-    _appointmentsStream = _db.watchAppointmentsForUser(_currentUserId);
+  // Funzione per mostrare il dialogo di aggiunta/modifica appuntamento
+  void _showAddEditAppointmentDialog({Appointment? existingAppointment}) async {
+    if (_currentUserId == null) {
+      _showMessage('Errore: ID utente non disponibile.');
+      return;
+    }
+
+    final isEditing = existingAppointment != null;
+    final titleController = TextEditingController(text: existingAppointment?.title ?? '');
+    final locationController = TextEditingController(text: existingAppointment?.location ?? '');
+    DateTime selectedDateTime = existingAppointment?.appointmentDateTime ?? DateTime.now();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEditing ? 'Modifica Appuntamento' : 'Aggiungi Appuntamento'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Titolo appuntamento'),
+              ),
+              TextField(
+                controller: locationController,
+                decoration: const InputDecoration(labelText: 'Luogo (opzionale)'),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                title: Text('Data: ${selectedDateTime.toLocal().toString().split(' ')[0]}'),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDateTime,
+                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                    lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                  );
+                  if (pickedDate != null) {
+                    setState(() {
+                      selectedDateTime = DateTime(
+                        pickedDate.year,
+                        pickedDate.month,
+                        pickedDate.day,
+                        selectedDateTime.hour,
+                        selectedDateTime.minute,
+                      );
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                title: Text('Ora: ${selectedDateTime.toLocal().hour.toString().padLeft(2, '0')}:${selectedDateTime.toLocal().minute.toString().padLeft(2, '0')}'),
+                trailing: const Icon(Icons.access_time),
+                onTap: () async {
+                  final TimeOfDay? pickedTime = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.fromDateTime(selectedDateTime),
+                  );
+                  if (pickedTime != null) {
+                    setState(() {
+                      selectedDateTime = DateTime(
+                        selectedDateTime.year,
+                        selectedDateTime.month,
+                        selectedDateTime.day,
+                        pickedTime.hour,
+                        pickedTime.minute,
+                      );
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (titleController.text.trim().isEmpty) {
+                _showMessage('Il titolo dell\'appuntamento non può essere vuoto.');
+                return;
+              }
+
+              final newDateTime = selectedDateTime; // Usa il DateTime aggiornato
+
+              if (isEditing) {
+                // Aggiorna appuntamento esistente
+                await _database.updateAppointment(
+                  AppointmentsCompanion(
+                    id: Value(existingAppointment!.id), // ID dell'appuntamento da aggiornare
+                    userId: Value(_currentUserId!), // Incapsula la stringa con Value()
+                    title: Value(titleController.text.trim()), // Incapsula la stringa con Value()
+                    location: Value(locationController.text.trim().isEmpty ? null : locationController.text.trim()), // Incapsula String? con Value()
+                    appointmentDateTime: Value(newDateTime), // Incapsula DateTime con Value()
+                  ),
+                );
+                // Registra l'azione nella cronologia
+                await _database.addHistoryEntry(
+                  HistoryEntriesCompanion(
+                    userId: Value(_currentUserId!), // Incapsula la stringa con Value()
+                    timestamp: Value(DateTime.now()), // Incapsula DateTime con Value()
+                    type: Value('appointment_updated'), // Incapsula la stringa con Value()
+                    description: Value('Aggiornato appuntamento: ${titleController.text.trim()} il ${newDateTime.toLocal().toString().split(' ')[0]}'), // Incapsula la stringa con Value()
+                  ),
+                );
+                _showMessage('Appuntamento aggiornato con successo!');
+              } else {
+                // Aggiungi nuovo appuntamento
+                await _database.addAppointment(
+                  AppointmentsCompanion(
+                    userId: Value(_currentUserId!), // Incapsula la stringa con Value()
+                    title: Value(titleController.text.trim()), // Incapsula la stringa con Value()
+                    location: Value(locationController.text.trim().isEmpty ? null : locationController.text.trim()), // Incapsula String? con Value()
+                    appointmentDateTime: Value(newDateTime), // Incapsula DateTime con Value()
+                  ),
+                );
+                // Registra l'azione nella cronologia
+                await _database.addHistoryEntry(
+                  HistoryEntriesCompanion(
+                    userId: Value(_currentUserId!), // Incapsula la stringa con Value()
+                    timestamp: Value(DateTime.now()), // Incapsula DateTime con Value()
+                    type: Value('appointment_added'), // Incapsula la stringa con Value()
+                    description: Value('Aggiunto appuntamento: ${titleController.text.trim()} il ${newDateTime.toLocal().toString().split(' ')[0]}'), // Incapsula la stringa con Value()
+                  ),
+                );
+                _showMessage('Appuntamento aggiunto con successo!');
+              }
+              Navigator.of(context).pop(); // Chiudi il dialogo
+            },
+            child: Text(isEditing ? 'Salva' : 'Aggiungi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Funzione per eliminare un appuntamento
+  void _deleteAppointment(Appointment appointment) async {
+    if (_currentUserId == null) {
+      _showMessage('Errore: ID utente non disponibile.');
+      return;
+    }
+
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Conferma Eliminazione'),
+        content: Text('Sei sicuro di voler eliminare l\'appuntamento "${appointment.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Elimina', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmDelete == true) {
+      // Elimina l'appuntamento dal database
+      await _database.deleteAppointment(appointment.id);
+
+      // Registra l'azione nella cronologia
+      await _database.addHistoryEntry(
+        HistoryEntriesCompanion(
+          userId: Value(_currentUserId!), // Incapsula la stringa con Value()
+          timestamp: Value(DateTime.now()), // Incapsula DateTime con Value()
+          type: Value('appointment_deleted'), // Incapsula la stringa con Value()
+          description: Value('Cancellato appuntamento: ${appointment.title}'), // Incapsula la stringa con Value()
+        ),
+      );
+      _showMessage('Appuntamento eliminato con successo!');
+    }
+  }
+
+  // Funzione per mostrare un messaggio all'utente
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final double fontSizeScale = _userProfile?.granularFontSizeScale ?? 1.0;
+    if (_currentUserId == null) {
+      return const Scaffold(
+        appBar: AppBar(title: Text('Appuntamenti')),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('I Miei Appuntamenti'),
-        centerTitle: true,
+        title: const Text('Appuntamenti'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
       body: StreamBuilder<List<Appointment>>(
-        stream: _appointmentsStream,
+        // Ascolta i cambiamenti sugli appuntamenti per l'utente corrente
+        stream: _database.watchAllAppointmentsForUser(_currentUserId!),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(child: Text('Errore: ${snapshot.error}'));
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Text(
-                'Nessun appuntamento in programma. Premi "+" per aggiungerne uno.',
-                style: TextStyle(fontSize: 18 * fontSizeScale),
-                textAlign: TextAlign.center,
-              ),
-            );
+            return const Center(child: Text('Nessun appuntamento aggiunto.'));
           } else {
             final appointments = snapshot.data!;
-            // Sort by date and time
-            appointments.sort((a, b) => a.appointmentDateTime.compareTo(b.appointmentDateTime));
-
             return ListView.builder(
+              padding: const EdgeInsets.all(8.0),
               itemCount: appointments.length,
               itemBuilder: (context, index) {
                 final appointment = appointments[index];
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  child: ListTile(
-                    title: Text(
-                      appointment.title,
-                      style: TextStyle(fontSize: 20 * fontSizeScale, fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Data: ${appointment.appointmentDateTime.toLocal().toString().split(' ')[0]}',
-                          style: TextStyle(fontSize: 16 * fontSizeScale),
+                          appointment.title,
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                        Text(
-                          'Ora: ${TimeOfDay.fromDateTime(appointment.appointmentDateTime).format(context)}',
-                          style: TextStyle(fontSize: 16 * fontSizeScale),
+                        const SizedBox(height: 8),
+                        Text('Data e Ora: ${appointment.appointmentDateTime.toLocal().toString().split('.')[0]}'),
+                        Text('Luogo: ${appointment.location ?? 'Nessuno'}'),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () => _showAddEditAppointmentDialog(existingAppointment: appointment),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteAppointment(appointment),
+                            ),
+                          ],
                         ),
-                        if (appointment.location != null && appointment.location!.isNotEmpty)
-                          Text(
-                            'Luogo: ${appointment.location}',
-                            style: TextStyle(fontSize: 16 * fontSizeScale),
-                          ),
                       ],
-                    ),
-                    onTap: () {
-                      _showAppointmentDialog(context, appointment: appointment);
-                    },
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _confirmDeleteAppointment(appointment), // Pass the full object
                     ),
                   ),
                 );
@@ -113,175 +284,10 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAppointmentDialog(context),
+        onPressed: () => _showAddEditAppointmentDialog(),
+        tooltip: 'Aggiungi Appuntamento',
         child: const Icon(Icons.add),
       ),
     );
-  }
-
-  Future<void> _showAppointmentDialog(BuildContext context, {Appointment? appointment}) async {
-    final isEditing = appointment != null;
-    final titleController = TextEditingController(text: appointment?.title);
-    final locationController = TextEditingController(text: appointment?.location);
-
-    DateTime selectedDate = appointment?.appointmentDateTime ?? DateTime.now();
-    TimeOfDay selectedTime = TimeOfDay.fromDateTime(appointment?.appointmentDateTime ?? DateTime.now());
-
-    await showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Text(isEditing ? 'Modifica Appuntamento' : 'Nuovo Appuntamento'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Titolo Appuntamento'),
-                ),
-                TextField(
-                  controller: locationController,
-                  decoration: const InputDecoration(labelText: 'Luogo (Opzionale)'),
-                ),
-                ListTile(
-                  title: Text('Data: ${selectedDate.toLocal().toString().split(' ')[0]}'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    DateTime? pickedDate = await showDatePicker(
-                      context: dialogContext,
-                      initialDate: selectedDate,
-                      firstDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
-                      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                    );
-                    if (pickedDate != null) {
-                      selectedDate = pickedDate;
-                      (dialogContext as Element).markNeedsBuild();
-                    }
-                  },
-                ),
-                ListTile(
-                  title: Text('Ora: ${selectedTime.format(dialogContext)}'),
-                  trailing: const Icon(Icons.access_time),
-                  onTap: () async {
-                    TimeOfDay? pickedTime = await showTimePicker(
-                      context: dialogContext,
-                      initialTime: selectedTime,
-                    );
-                    if (pickedTime != null) {
-                      selectedTime = pickedTime;
-                      (dialogContext as Element).markNeedsBuild();
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Annulla'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final newDateTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                if (titleController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Il titolo dell\'appuntamento non può essere vuoto.')),
-                  );
-                  return;
-                }
-
-                if (isEditing) {
-                  final updatedAppointment = appointment!.copyWith(
-                    title: titleController.text.trim(),
-                    location: locationController.text.trim().isEmpty ? null : locationController.text.trim(),
-                    appointmentDateTime: newDateTime,
-                  );
-                  await _db.updateAppointment(updatedAppointment);
-                  await _db.insertHistory( // Corrected: insertHistory
-                    HistoriesCompanion(
-                      userId: _currentUserId, // No Value()
-                      timestamp: DateTime.now(), // No Value()
-                      type: 'appointment_updated', // No Value()
-                      description: 'Aggiornato appuntamento: ${titleController.text.trim()} il ${newDateTime.toLocal().toString().split(' ')[0]}', // No Value()
-                      appointmentId: Value(appointment.id), // Use Value() for nullable foreign key
-                    ),
-                  );
-                } else {
-                  final newAppointmentId = await _db.insertAppointment(
-                    AppointmentsCompanion(
-                      userId: _currentUserId, // No Value()
-                      title: titleController.text.trim(), // No Value()
-                      location: locationController.text.trim().isEmpty ? null : locationController.text.trim(), // No Value()
-                      appointmentDateTime: newDateTime, // No Value()
-                    ),
-                  );
-                  await _db.insertHistory( // Corrected: insertHistory
-                    HistoriesCompanion(
-                      userId: _currentUserId, // No Value()
-                      timestamp: DateTime.now(), // No Value()
-                      type: 'appointment_added', // No Value()
-                      description: 'Aggiunto appuntamento: ${titleController.text.trim()} il ${newDateTime.toLocal().toString().split(' ')[0]}', // No Value()
-                      appointmentId: Value(newAppointmentId), // Use Value() for nullable foreign key
-                    ),
-                  );
-                }
-                Navigator.of(dialogContext).pop();
-              },
-              child: Text(isEditing ? 'Salva' : 'Aggiungi'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _confirmDeleteAppointment(Appointment appointment) async {
-    bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Conferma Eliminazione'),
-          content: Text('Sei sicuro di voler eliminare l\'appuntamento "${appointment.title}"?'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Annulla'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Elimina'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm == true) {
-      await _db.deleteAppointment(appointment); // Pass the full object
-      await _db.deleteAppointmentHistory(appointment.id); // Delete related history entries
-      await _db.insertHistory( // Corrected: insertHistory
-        HistoriesCompanion(
-          userId: _currentUserId, // No Value()
-          timestamp: DateTime.now(), // No Value()
-          type: 'appointment_deleted', // No Value()
-          description: 'Cancellato appuntamento: ${appointment.title}', // No Value()
-          appointmentId: Value(appointment.id), // Use Value() for nullable foreign key
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Appuntamento "${appointment.title}" eliminato.')),
-      );
-    }
   }
 }
