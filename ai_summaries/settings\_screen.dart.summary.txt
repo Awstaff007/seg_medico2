@@ -1,4 +1,0 @@
-Modifiche suggerite per il file: settings\_screen.dart
-
-Nessuna riga modificata significativamente (potrebbero esserci solo spazi bianchi).
-NOTA: Per un sommario più dettagliato e semantico, considera di passare il file .diff o le modifiche all'AI.
