@@ -1,346 +1,129 @@
-// lib/home_page.dart
-
 import 'package:flutter/material.dart';
-import 'package:seg_medico2/data/database.dart'; // Questo import ora porta tutti i tipi generati (Appointment, Medication, HistoryEntry, Companion classes)
-import 'package:seg_medico2/appointments_page.dart';
-import 'package:seg_medico2/medications_page.dart';
-import 'package:seg_medico2/history_page.dart';
-import 'package:drift/drift.dart' hide Column; // Importa Value da drift, nascondendo Column per evitare conflitti
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
-import 'package:intl/intl.dart'; // Per la formattazione della data
+import 'package:intl/intl.dart';
+import 'package:seg_medico2/data/database.dart';
+// CORREZIONE: Aggiunto import mancante per usare 'Value'
+import 'package:drift/drift.dart';
 
 class HomePage extends StatefulWidget {
   final AppDatabase db;
-  final String userId;
+  final int userId;
 
-  const HomePage({super.key, required this.db, required this.userId});
+  const HomePage({Key? key, required this.db, required this.userId}) : super(key: key);
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  // I tipi ora dovrebbero essere riconosciuti correttamente grazie all'import di database.dart
   Appointment? _nextAppointment;
   Medication? _nextMedication;
 
   @override
   void initState() {
     super.initState();
-    _loadNextAppointment();
-    _loadNextMedication();
+    _loadInitialData();
   }
 
-  Future<void> _loadNextAppointment() async {
-    // allAppointments è ora List<Appointment>, quindi i getter sono disponibili
+  Future<void> _loadInitialData() async {
     final allAppointments = await widget.db.getAllAppointmentsForUser(widget.userId);
-    final upcomingAppointments = allAppointments.where((a) => !a.isCompleted && a.appointmentDate.isAfter(DateTime.now())).toList();
-    upcomingAppointments.sort((a, b) => a.appointmentDate.compareTo(b.appointmentDate));
-    setState(() {
-      _nextAppointment = upcomingAppointments.isNotEmpty ? upcomingAppointments.first : null;
-    });
-  }
-
-  Future<void> _loadNextMedication() async {
-    // allMedications è ora List<Medication>, quindi i getter sono disponibili
     final allMedications = await widget.db.getAllMedicationsForUser(widget.userId);
-    final upcomingMedications = allMedications.where((m) => m.isActive && m.nextDose != null && m.nextDose!.isAfter(DateTime.now())).toList();
-    upcomingMedications.sort((a, b) => a.nextDose!.compareTo(b.nextDose!));
+
     setState(() {
-      _nextMedication = upcomingMedications.isNotEmpty ? upcomingMedications.first : null;
+      _nextAppointment = allAppointments.isNotEmpty ? allAppointments.first : null;
+      _nextMedication = allMedications.isNotEmpty ? allMedications.first : null;
     });
   }
 
   Future<void> _completeAppointment() async {
     if (_nextAppointment != null) {
-      await widget.db.updateAppointment(
-        AppointmentsCompanion(
-          id: Value(_nextAppointment!.id),
-          isCompleted: const Value(true),
-        ),
-      );
+      // CORREZIONE: 'Value' ora è riconosciuto
+      await widget.db.updateAppointment(AppointmentsCompanion(
+        id: Value(_nextAppointment!.id),
+        isCompleted: const Value(true),
+      ));
       await widget.db.addHistoryEntry(
-        HistoryEntriesCompanion(
+        MedicalHistoryCompanion(
           userId: Value(widget.userId),
+          eventType: const Value('Appuntamento'),
+          details: Value('Appuntamento completato: ${_nextAppointment!.doctorName}'),
           timestamp: Value(DateTime.now()),
-          type: const Value('appointment_completed'),
-          description: Value('Appuntamento completato: ${_nextAppointment!.title}'),
         ),
       );
-      _loadNextAppointment(); // Ricarica il prossimo appuntamento
-    }
-  }
-
-  Future<void> _cancelAppointment() async {
-    if (_nextAppointment != null) {
-      await widget.db.deleteAppointment(_nextAppointment!.id);
-      await widget.db.addHistoryEntry(
-        HistoryEntriesCompanion(
-          userId: Value(widget.userId),
-          timestamp: Value(DateTime.now()),
-          type: const Value('appointment_cancelled'),
-          description: Value('Appuntamento annullato: ${_nextAppointment!.title}'),
-        ),
-      );
-      _loadNextAppointment(); // Ricarica il prossimo appuntamento
+      _loadInitialData();
     }
   }
 
   Future<void> _takeMedication() async {
     if (_nextMedication != null) {
-      // Aggiorna la prossima dose per il farmaco
-      // Utilizza il metodo toCompanion generato per creare un Companion da un modello esistente
-      final updatedMedicationCompanion = _nextMedication!.toCompanion(true).copyWith(
-        nextDose: Value(_nextMedication!.nextDose!.add(const Duration(days: 1))), // Esempio: prossima dose tra 1 giorno
-      );
-      await widget.db.updateMedication(updatedMedicationCompanion);
-
+      await widget.db.updateMedication(MedicationsCompanion(
+        id: Value(_nextMedication!.id),
+        nextDose: Value(_nextMedication!.nextDose?.add(const Duration(days: 1))),
+      ));
       await widget.db.addHistoryEntry(
-        HistoryEntriesCompanion(
+        MedicalHistoryCompanion(
           userId: Value(widget.userId),
+          eventType: const Value('Farmaco'),
+          details: Value('Farmaco assunto: ${_nextMedication!.name}'),
           timestamp: Value(DateTime.now()),
-          type: const Value('medication_taken'),
-          description: Value('Farmaco preso: ${_nextMedication!.name} - Dose: ${_nextMedication!.dosage}'),
         ),
       );
-      _loadNextMedication(); // Ricarica il prossimo farmaco
+      _loadInitialData();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Segreteria Medica'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => HistoryPage(db: widget.db, userId: widget.userId)),
-              );
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
+      appBar: AppBar(title: const Text('Dashboard Principale')),
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle('Prossimi Appuntamenti'),
-            _nextAppointment == null
-                ? const Text('Nessun appuntamento imminente.')
-                : Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _nextAppointment!.title,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextAppointment!.appointmentDate)}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          if (_nextAppointment!.description != null && _nextAppointment!.description!.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4.0),
-                              child: Text(
-                                'Descrizione: ${_nextAppointment!.description}',
-                                style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
-                              ),
-                            ),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              ElevatedButton(
-                                onPressed: _completeAppointment,
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                                child: const Text('Completato'),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                onPressed: _cancelAppointment,
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                child: const Text('Annulla'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+            const Text('Prossimo Appuntamento', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            if (_nextAppointment != null)
+              Card(
+                child: ListTile(
+                  title: Text(_nextAppointment!.doctorName),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Data: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextAppointment!.appointmentDate)}'),
+                      if (_nextAppointment!.notes != null && _nextAppointment!.notes!.isNotEmpty)
+                        Text('Note: ${_nextAppointment!.notes}'),
+                    ],
                   ),
-            const SizedBox(height: 24),
-            _buildSectionTitle('Prossimi Farmaci'),
-            _nextMedication == null
-                ? const Text('Nessun farmaco imminente.')
-                : Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _nextMedication!.name,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          if (_nextMedication!.dosage != null && _nextMedication!.dosage!.isNotEmpty)
-                            Text(
-                              'Dosaggio: ${_nextMedication!.dosage}',
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          if (_nextMedication!.frequency != null && _nextMedication!.frequency!.isNotEmpty)
-                            Text(
-                              'Frequenza: ${_nextMedication!.frequency}',
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          if (_nextMedication!.nextDose != null)
-                            Text(
-                              'Prossima dose: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextMedication!.nextDose!)}',
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          const SizedBox(height: 16),
-                          Align(
-                            alignment: Alignment.bottomRight,
-                            child: ElevatedButton(
-                              onPressed: _takeMedication,
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                              child: const Text('Prendi Farmaco'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  trailing: ElevatedButton(
+                    onPressed: _completeAppointment,
+                    child: const Text('Completato'),
                   ),
-            const SizedBox(height: 24),
-            _buildSectionTitle('Accesso Rapido'),
-            _buildQuickAccessGrid(),
-          ],
-        ),
-      ),
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.calendar_today),
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            label: 'Nuovo Appuntamento',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => AppointmentsPage(db: widget.db, userId: widget.userId)),
-              ).then((_) => _loadNextAppointment()); // Ricarica dopo aver aggiunto/modificato
-            },
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.medical_services),
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            label: 'Nuovo Farmaco',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => MedicationsPage(db: widget.db, userId: widget.userId)),
-              ).then((_) => _loadNextMedication()); // Ricarica dopo aver aggiunto/modificato
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple),
-      ),
-    );
-  }
-
-  Widget _buildQuickAccessGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 16.0,
-      mainAxisSpacing: 16.0,
-      children: [
-        _buildQuickAccessCard(
-          icon: Icons.calendar_month,
-          title: 'Appuntamenti',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => AppointmentsPage(db: widget.db, userId: widget.userId)),
-            );
-          },
-        ),
-        _buildQuickAccessCard(
-          icon: Icons.medication,
-          title: 'Farmaci',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => MedicationsPage(db: widget.db, userId: widget.userId)),
-            );
-          },
-        ),
-        _buildQuickAccessCard(
-          icon: Icons.history,
-          title: 'Cronologia',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => HistoryPage(db: widget.db, userId: widget.userId)),
-            );
-          },
-        ),
-        _buildQuickAccessCard(
-          icon: Icons.settings,
-          title: 'Impostazioni',
-          onTap: () {
-            // TODO: Implementare la pagina delle impostazioni
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Funzionalità Impostazioni non ancora implementata.')),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickAccessCard({required IconData icon, required String title, required VoidCallback onTap}) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(15),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 50, color: Theme.of(context).primaryColor),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
+                ),
+              )
+            else
+              const Text('Nessun appuntamento imminente.'),
+            const SizedBox(height: 20),
+            const Text('Prossimo Farmaco da Assumere', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            if (_nextMedication != null)
+              Card(
+                child: ListTile(
+                  title: Text(_nextMedication!.name),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Dosaggio: ${_nextMedication!.dosage}'),
+                      Text('Frequenza: ${_nextMedication!.frequency}'),
+                      if (_nextMedication!.nextDose != null)
+                         Text('Prossima dose: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextMedication!.nextDose!)}'),
+                    ],
+                  ),
+                  trailing: ElevatedButton(
+                    onPressed: _takeMedication,
+                    child: const Text('Assunto'),
+                  ),
+                ),
+              )
+            else
+              const Text('Nessun farmaco da assumere.'),
           ],
         ),
       ),

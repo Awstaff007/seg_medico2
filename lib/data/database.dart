@@ -16,24 +16,30 @@ class Users extends Table {
 
 class Appointments extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
+  // CORREZIONE: Aggiunto NOT NULL e ON DELETE CASCADE per robustezza
+  IntColumn get userId => integer().customConstraint('NOT NULL REFERENCES users(id) ON DELETE CASCADE')();
   TextColumn get doctorName => text()();
   TextColumn get location => text()();
   DateTimeColumn get appointmentDate => dateTime()();
   TextColumn get notes => text().nullable()();
+  BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
 }
 
 class Medications extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
+  // CORREZIONE: Aggiunto NOT NULL e ON DELETE CASCADE
+  IntColumn get userId => integer().customConstraint('NOT NULL REFERENCES users(id) ON DELETE CASCADE')();
   TextColumn get name => text()();
   TextColumn get dosage => text()();
   TextColumn get frequency => text()();
+  DateTimeColumn get nextDose => dateTime().nullable()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 }
 
 class MedicalHistory extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
+  // CORREZIONE: Aggiunto NOT NULL e ON DELETE CASCADE
+  IntColumn get userId => integer().customConstraint('NOT NULL REFERENCES users(id) ON DELETE CASCADE')();
   TextColumn get eventType => text()();
   TextColumn get details => text()();
   DateTimeColumn get timestamp => dateTime()();
@@ -44,26 +50,48 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
-  // Metodi per le query sugli utenti
-  Future<int> addUser(UsersCompanion entry) {
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (m) async {
+        await m.createAll();
+      },
+      onUpgrade: (m, from, to) async {
+        if (from < 2) {
+          await m.addColumn(appointments, appointments.isCompleted);
+          await m.addColumn(medications, medications.nextDose);
+          await m.addColumn(medications, medications.isActive);
+        }
+      },
+    );
+  }
+
+  // --- Metodi Utenti ---
+  Future<int> createUser(UsersCompanion entry) {
     return into(users).insert(entry);
   }
 
   Future<User?> getUserById(int id) {
     return (select(users)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
   }
+  
+  Future<User?> getUser(String name) {
+    return (select(users)..where((tbl) => tbl.name.equals(name))).getSingleOrNull();
+  }
 
-  // Metodi per le query sugli appuntamenti
-  /// CORREZIONE: La query è stata riscritta per usare correttamente
-  /// gli operatori a cascata (..) per where e orderBy.
-  /// L'errato '.get()' è stato rimosso dalla costruzione dello stream.
-  Stream<List<Appointment>> watchAppointments(int userId) {
+
+  // --- Metodi Appuntamenti ---
+  Stream<List<Appointment>> watchAllAppointmentsForUser(int userId) {
     return (select(appointments)
           ..where((tbl) => tbl.userId.equals(userId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.appointmentDate)]))
         .watch();
+  }
+  
+  Future<List<Appointment>> getAllAppointmentsForUser(int userId) {
+      return (select(appointments)..where((tbl) => tbl.userId.equals(userId))).get();
   }
 
   Future<int> addAppointment(AppointmentsCompanion entry) {
@@ -78,14 +106,16 @@ class AppDatabase extends _$AppDatabase {
     return (delete(appointments)..where((tbl) => tbl.id.equals(id))).go();
   }
 
-  // Metodi per le query sui farmaci
-  /// CORREZIONE: La query è stata riscritta con la sintassi corretta
-  /// per il chaining dei metodi in drift.
-  Stream<List<Medication>> watchMedications(int userId) {
+  // --- Metodi Farmaci ---
+  Stream<List<Medication>> watchAllMedicationsForUser(int userId) {
     return (select(medications)
           ..where((tbl) => tbl.userId.equals(userId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.name)]))
         .watch();
+  }
+  
+  Future<List<Medication>> getAllMedicationsForUser(int userId) {
+      return (select(medications)..where((tbl) => tbl.userId.equals(userId))).get();
   }
 
   Future<int> addMedication(MedicationsCompanion entry) {
@@ -100,29 +130,27 @@ class AppDatabase extends _$AppDatabase {
     return (delete(medications)..where((tbl) => tbl.id.equals(id))).go();
   }
 
-  // Metodi per le query sulla cronologia medica
-  /// CORREZIONE: La query è stata riscritta con la sintassi corretta.
-  /// È stato anche corretto il riferimento alla tabella da 'historyEntries'
-  /// a 'medicalHistory', che è il nome corretto generato da drift.
+  // --- Metodi Cronologia ---
   Stream<List<MedicalHistoryData>> watchMedicalHistory(int userId) {
     return (select(medicalHistory)
           ..where((tbl) => tbl.userId.equals(userId))
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)]))
         .watch();
   }
+  
+  Future<List<MedicalHistoryData>> getHistoryForUser(int userId) {
+      return (select(medicalHistory)..where((tbl) => tbl.userId.equals(userId))).get();
+  }
 
-  Future<int> addMedicalHistory(MedicalHistoryCompanion entry) {
+  Future<int> addHistoryEntry(MedicalHistoryCompanion entry) {
     return into(medicalHistory).insert(entry);
   }
 }
 
 LazyDatabase _openConnection() {
-  // the LazyDatabase util lets us find the right location for the file async.
   return LazyDatabase(() async {
-    // put the database file, called db.sqlite here, into the documents folder
-    // for your app.
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'db.sqlite'));
-    return NativeDatabase(file);
+    return NativeDatabase(file, logStatements: true);
   });
 }

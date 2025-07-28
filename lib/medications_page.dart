@@ -1,122 +1,62 @@
-// lib/medications_page.dart
-
 import 'package:flutter/material.dart';
-import 'package:seg_medico2/data/database.dart'; // Questo import ora porta tutti i tipi generati
-import 'package:seg_medico2/edit_medication_page.dart';
-import 'package:drift/drift.dart' hide Column; // Importa Value da drift
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:seg_medico2/auth/auth_service.dart';
+import 'package:seg_medico2/data/database.dart';
+import 'package:seg_medico2/edit_medication_page.dart';
 
 class MedicationsPage extends StatefulWidget {
-  final AppDatabase db;
-  final String userId;
-
-  const MedicationsPage({super.key, required this.db, required this.userId});
+  const MedicationsPage({Key? key}) : super(key: key);
 
   @override
-  State<MedicationsPage> createState() => _MedicationsPageState();
+  _MedicationsPageState createState() => _MedicationsPageState();
 }
 
 class _MedicationsPageState extends State<MedicationsPage> {
   late AppDatabase _database;
-  late String _currentUserId;
+  late int _currentUserId;
 
   @override
-  void initState() {
-    super.initState();
-    _database = widget.db;
-    _currentUserId = widget.userId;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _database = Provider.of<AppDatabase>(context);
+    final authService = Provider.of<AuthService>(context, listen: false);
+    _currentUserId = int.parse(authService.currentUserId!);
   }
 
-  Future<void> _addMedication(BuildContext context) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditMedicationPage(db: _database, userId: _currentUserId),
+  Future<void> _deleteMedication(int medicationId, String medicationName) async {
+    await _database.deleteMedication(medicationId);
+    // CORREZIONE: Usa il metodo e il companion corretti
+    await _database.addHistoryEntry(
+      MedicalHistoryCompanion(
+        userId: Value(_currentUserId),
+        eventType: const Value('Farmaco'),
+        details: Value('Farmaco eliminato: $medicationName'),
+        timestamp: Value(DateTime.now()),
       ),
     );
-
-    if (result == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Farmaco salvato con successo!')),
-      );
-    }
   }
 
-  Future<void> _editMedication(BuildContext context, Medication medication) async { // Il tipo Medication è ora riconosciuto
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditMedicationPage(
-          db: _database,
-          userId: _currentUserId,
-          existingMedication: medication,
-        ),
-      ),
-    );
-
-    if (result == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Farmaco aggiornato con successo!')),
-      );
-    }
-  }
-
-  Future<void> _deleteMedication(int id, String name) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Conferma Eliminazione'),
-          content: Text('Sei sicuro di voler eliminare il farmaco "$name"?'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Annulla'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Elimina'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      await _database.deleteMedication(id);
-      await _database.addHistoryEntry(
-        HistoryEntriesCompanion( // Ora riconosciuto
-          userId: Value(_currentUserId),
-          timestamp: Value(DateTime.now()),
-          type: const Value('medication_deleted'),
-          description: Value('Farmaco eliminato: $name'),
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Farmaco eliminato con successo!')),
-      );
-    }
-  }
-
-  Future<void> _toggleMedicationActive(Medication medication) async { // Il tipo Medication è ora riconosciuto
+  Future<void> _toggleMedicationStatus(Medication medication) async {
+    // CORREZIONE: Usa il campo 'isActive'
     final newStatus = !medication.isActive;
-    await _database.updateMedication(
-      MedicationsCompanion( // Corretto da medicationsCompanion a MedicationsCompanion
-        id: Value(medication.id),
-        isActive: Value(newStatus),
-      ),
-    );
+    await _database.updateMedication(MedicationsCompanion(
+      id: Value(medication.id),
+      // CORREZIONE: Usa il campo 'isActive'
+      isActive: Value(newStatus),
+    ));
 
-    String historyDescription = newStatus
+    final details = newStatus
         ? 'Farmaco riattivato: ${medication.name}'
         : 'Farmaco disattivato: ${medication.name}';
-
+    
+    // CORREZIONE: Usa il metodo e il companion corretti
     await _database.addHistoryEntry(
-      HistoryEntriesCompanion( // Ora riconosciuto
+      MedicalHistoryCompanion(
         userId: Value(_currentUserId),
+        eventType: const Value('Stato Farmaco'),
+        details: Value(details),
         timestamp: Value(DateTime.now()),
-        type: Value(newStatus ? 'medication_activated' : 'medication_deactivated'),
-        description: Value(historyDescription),
       ),
     );
   }
@@ -124,56 +64,60 @@ class _MedicationsPageState extends State<MedicationsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Farmaci')),
-      body: StreamBuilder<List<Medication>>( // Il tipo Medication è ora riconosciuto
+      appBar: AppBar(title: const Text('Gestione Farmaci')),
+      body: StreamBuilder<List<Medication>>(
+        // CORREZIONE: Il metodo si chiama 'watchAllMedicationsForUser'
         stream: _database.watchAllMedicationsForUser(_currentUserId),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('Nessun farmaco. Aggiungine uno!'));
-          }
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final medications = snapshot.data!;
           return ListView.builder(
             itemCount: medications.length,
             itemBuilder: (context, index) {
               final medication = medications[index];
               return Card(
-                margin: const EdgeInsets.all(8.0),
-                elevation: 4,
                 child: ListTile(
                   title: Text(
                     medication.name,
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
+                      // CORREZIONE: Usa 'isActive'
                       decoration: !medication.isActive ? TextDecoration.lineThrough : null,
                     ),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (medication.dosage != null && medication.dosage!.isNotEmpty)
-                        Text('Dosaggio: ${medication.dosage}'),
-                      if (medication.frequency != null && medication.frequency!.isNotEmpty)
-                        Text('Frequenza: ${medication.frequency}'),
+                      Text('Dosaggio: ${medication.dosage}'),
+                      Text('Frequenza: ${medication.frequency}'),
+                      // CORREZIONE: Usa 'nextDose'
                       if (medication.nextDose != null)
                         Text('Prossima dose: ${DateFormat('dd/MM/yyyy HH:mm').format(medication.nextDose!)}'),
                     ],
+                  ),
+                  leading: IconButton(
+                    icon: Icon(
+                      // CORREZIONE: Usa 'isActive'
+                      medication.isActive ? Icons.toggle_on : Icons.toggle_off,
+                      // CORREZIONE: Usa 'isActive'
+                      color: medication.isActive ? Colors.green : Colors.red,
+                      size: 40,
+                    ),
+                    onPressed: () => _toggleMedicationStatus(medication),
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: Icon(
-                          medication.isActive ? Icons.toggle_on : Icons.toggle_off,
-                          color: medication.isActive ? Colors.green : Colors.red,
-                        ),
-                        onPressed: () => _toggleMedicationActive(medication),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () => _editMedication(context, medication),
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (context) => EditMedicationPage(
+                              db: _database,
+                              userId: _currentUserId,
+                              existingMedication: medication,
+                            ),
+                          ));
+                        },
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
@@ -188,7 +132,14 @@ class _MedicationsPageState extends State<MedicationsPage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _addMedication(context),
+        onPressed: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (context) => EditMedicationPage(
+              db: _database,
+              userId: _currentUserId,
+            ),
+          ));
+        },
         child: const Icon(Icons.add),
       ),
     );

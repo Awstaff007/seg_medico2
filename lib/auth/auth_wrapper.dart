@@ -1,49 +1,30 @@
-// lib/auth/auth_wrapper.dart
-
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:seg_medico2/auth/auth_service.dart';
 import 'package:seg_medico2/data/database.dart';
 import 'package:seg_medico2/home_page.dart';
 import 'package:seg_medico2/login_page.dart';
 
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  late final AppDatabase _db;
-  late final AuthService _authService;
-
-  @override
-  void initState() {
-    super.initState();
-    _db = AppDatabase(); // Inizializza il database
-    _authService = AuthService();
-    _authService.init(_db); // Inizializza il servizio di autenticazione con il database
-  }
-
-  @override
-  void dispose() {
-    _db.close(); // Chiudi la connessione al database quando il widget viene eliminato
-    _authService.currentUserIdNotifier.dispose(); // Dispone del notifier
-    super.dispose();
-  }
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // Ascolta i cambiamenti nell'ID utente corrente
+    final authService = Provider.of<AuthService>(context);
+    final db = Provider.of<AppDatabase>(context, listen: false);
+
+    // ValueListenableBuilder ascolta i cambiamenti nell'ID utente
+    // e ricostruisce l'interfaccia di conseguenza.
     return ValueListenableBuilder<String?>(
-      valueListenable: _authService.currentUserIdNotifier,
-      builder: (context, userId, child) {
+      valueListenable: authService.currentUserIdNotifier,
+      builder: (_, userId, __) {
         if (userId == null) {
-          // Se l'utente non è loggato, mostra la pagina di login
-          return LoginPage(db: _db); // Passa l'istanza del database
+          // Se non c'è un utente loggato, mostra la pagina di login.
+          return const LoginPage();
         } else {
-          // Se l'utente è loggato, mostra la home page
-          return HomePage(db: _db, userId: userId); // Passa l'istanza del database e l'ID utente
+          // Se l'utente è loggato, mostra la HomePage.
+          // CORREZIONE: Converte l'ID da String a int come richiesto da HomePage.
+          return HomePage(db: db, userId: int.parse(userId));
         }
       },
     );

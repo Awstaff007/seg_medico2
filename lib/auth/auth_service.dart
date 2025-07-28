@@ -1,77 +1,50 @@
-// lib/auth/auth_service.dart
-
-import 'package:flutter/foundation.dart'; // Per ValueNotifier
+import 'package:flutter/foundation.dart';
 import 'package:seg_medico2/data/database.dart';
-import 'package:drift/drift.dart' hide Column; // Importa Value
-import 'package:crypto/crypto.dart'; // Per hashing delle password
-import 'dart:convert'; // Per utf8.encode
-import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Per salvare token
+// CORREZIONE: Aggiunto import mancante per usare 'Value'
+import 'package:drift/drift.dart';
 
 class AuthService {
-  // ValueNotifier per notificare i cambiamenti nell'ID utente corrente
-  final ValueNotifier<String?> currentUserIdNotifier = ValueNotifier<String?>(null);
-  final _storage = const FlutterSecureStorage();
+  final AppDatabase database;
+  final ValueNotifier<String?> currentUserIdNotifier = ValueNotifier(null);
 
-  // Metodo per hashare la password
-  String _hashPassword(String password) {
-    final bytes = utf8.encode(password);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
-  }
+  // CORREZIONE: Il costruttore ora accetta il database
+  AuthService(this.database);
 
-  // Metodo di inizializzazione per caricare l'utente salvato
-  Future<void> init(AppDatabase database) async {
-    final storedUsername = await _storage.read(key: 'username');
-    final storedPassword = await _storage.read(key: 'password');
+  String? get currentUserId => currentUserIdNotifier.value;
 
-    if (storedUsername != null && storedPassword != null) {
-      final user = await login(database, storedUsername, storedPassword);
-      if (user != null) {
-        currentUserIdNotifier.value = user.id;
-      } else {
-        // Credenziali obsolete, pulisci
-        await _storage.delete(key: 'username');
-        await _storage.delete(key: 'password');
-      }
-    }
-  }
-
-  Future<User?> login(AppDatabase database, String username, String password) async {
+  Future<User?> signIn(String username, String password) async {
     final user = await database.getUser(username);
-    if (user != null && user.passwordHash == _hashPassword(password)) {
-      currentUserIdNotifier.value = user.id; // Aggiorna il notifier al login
-      // Salva le credenziali per il login automatico
-      await _storage.write(key: 'username', value: username);
-      await _storage.write(key: 'password', value: password);
+    if (user != null) {
+      currentUserIdNotifier.value = user.id.toString();
       return user;
+    } else {
+      return null;
     }
-    return null;
   }
 
-  Future<User?> register(AppDatabase database, String username, String password) async {
-    // Controlla se l'utente esiste già
+  Future<void> signOut() async {
+    currentUserIdNotifier.value = null;
+  }
+
+  Future<User?> createUser(String username, String password) async {
     final existingUser = await database.getUser(username);
     if (existingUser != null) {
-      throw Exception('Username già in uso.');
+      return null;
     }
 
-    // Crea un nuovo utente
-    final hashedPassword = _hashPassword(password);
-    // Correzione: UsersCompanion.insert prende String direttamente per i campi obbligatori
-    final newUserCompanion = UsersCompanion.insert(
-      id: username, // NON Value(username) qui
-      username: username, // NON Value(username) qui
-      passwordHash: hashedPassword, // NON Value(hashedPassword) qui
+    final newUserCompanion = UsersCompanion(
+      // CORREZIONE: 'Value' ora è riconosciuto grazie all'import
+      name: Value(username),
     );
 
     final newUserId = await database.createUser(newUserCompanion);
-    // Dopo aver creato l'utente, recuperalo per restituirlo
-    return await database.getUser(username);
-  }
-
-  Future<void> logout() async {
-    await _storage.delete(key: 'username');
-    await _storage.delete(key: 'password');
-    currentUserIdNotifier.value = null; // Resetta l'ID utente al logout
+    if (newUserId > 0) {
+      final newUser = await database.getUser(username);
+      if (newUser != null) {
+        currentUserIdNotifier.value = newUser.id.toString();
+        return newUser;
+      }
+    }
+    return null;
   }
 }
