@@ -1,7 +1,8 @@
 // lib/history_page.dart
+
 import 'package:flutter/material.dart';
-import 'package:seg_medico2/data/database.dart';
-import 'package:intl/intl.dart'; // For date formatting
+import 'package:seg_medico2/data/database.dart'; // Questo import ora porta tutti i tipi generati
+import 'package:intl/intl.dart';
 
 class HistoryPage extends StatefulWidget {
   final AppDatabase db;
@@ -14,85 +15,82 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  late AppDatabase _db;
+  late AppDatabase _database;
   late String _currentUserId;
-  late Stream<List<History>> _historyStream;
-  Profile? _userProfile;
+  List<HistoryEntry> _historyEntries = []; // Il tipo HistoryEntry è ora riconosciuto
 
   @override
   void initState() {
     super.initState();
-    _db = widget.db;
+    _database = widget.db;
     _currentUserId = widget.userId;
-    _loadProfileAndHistory();
+    _loadHistory();
   }
 
-  Future<void> _loadProfileAndHistory() async {
-    _db.watchProfileForUser(_currentUserId).listen((profile) {
-      if (profile != null) {
-        setState(() {
-          _userProfile = profile;
-        });
-      }
+  Future<void> _loadHistory() async {
+    final history = await _database.getHistoryForUser(_currentUserId);
+    setState(() {
+      _historyEntries = history;
     });
-    _historyStream = _db.watchHistoryForUser(_currentUserId); // Corrected method name
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    return DateFormat('dd/MM/yyyy HH:mm').format(dateTime.toLocal());
   }
 
   @override
   Widget build(BuildContext context) {
-    final double fontSizeScale = _userProfile?.granularFontSizeScale ?? 1.0;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Storico Attività'),
-        centerTitle: true,
+        title: const Text('Cronologia Attività'),
       ),
-      body: StreamBuilder<List<History>>(
-        stream: _historyStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Errore: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Text(
-                'Nessuna attività registrata.',
-                style: TextStyle(fontSize: 18 * fontSizeScale),
-                textAlign: TextAlign.center,
-              ),
-            );
-          } else {
-            final historyEntries = snapshot.data!;
-            // Sort by timestamp in descending order (most recent first)
-            historyEntries.sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Access timestamp directly
-
-            return ListView.builder(
-              itemCount: historyEntries.length,
+      body: _historyEntries.isEmpty
+          ? const Center(child: Text('Nessuna attività registrata.'))
+          : ListView.builder(
+              itemCount: _historyEntries.length,
               itemBuilder: (context, index) {
-                final entry = historyEntries[index];
+                final entry = _historyEntries[index];
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                  elevation: 2,
                   child: ListTile(
-                    title: Text(
-                      '${_formatDateTime(entry.timestamp)} - ${entry.type.replaceAll('_', ' ')}', // Access timestamp directly
-                      style: TextStyle(fontSize: 18 * fontSizeScale, fontWeight: FontWeight.bold),
-                    ),
+                    title: Text(entry.description),
                     subtitle: Text(
-                      entry.description,
-                      style: TextStyle(fontSize: 16 * fontSizeScale),
+                      DateFormat('dd/MM/yyyy HH:mm').format(entry.timestamp),
+                      style: const TextStyle(color: Colors.grey),
                     ),
+                    leading: _getIconForHistoryType(entry.type),
                   ),
                 );
               },
-            );
-          }
-        },
-      ),
+            ),
     );
+  }
+
+  Icon _getIconForHistoryType(String type) {
+    switch (type) {
+      case 'appointment_completed':
+        return const Icon(Icons.check_circle, color: Colors.green);
+      case 'appointment_cancelled':
+        return const Icon(Icons.cancel, color: Colors.red);
+      case 'appointment_deleted':
+        return const Icon(Icons.delete_forever, color: Colors.redAccent);
+      case 'appointment_added':
+        return const Icon(Icons.event_available, color: Colors.blue);
+      case 'appointment_updated':
+        return const Icon(Icons.edit_calendar, color: Colors.orange);
+      case 'appointment_reopened':
+        return const Icon(Icons.undo, color: Colors.grey);
+      case 'medication_taken':
+        return const Icon(Icons.medical_services, color: Colors.purple);
+      case 'medication_deleted':
+        return const Icon(Icons.delete_forever, color: Colors.redAccent);
+      case 'medication_added':
+        return const Icon(Icons.add_box, color: Colors.blue);
+      case 'medication_updated':
+        return const Icon(Icons.edit_note, color: Colors.orange);
+      case 'medication_activated':
+        return const Icon(Icons.toggle_on, color: Colors.green);
+      case 'medication_deactivated':
+        return const Icon(Icons.toggle_off, color: Colors.red);
+      default:
+        return const Icon(Icons.info_outline, color: Colors.grey);
+    }
   }
 }

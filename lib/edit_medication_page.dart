@@ -1,13 +1,14 @@
 // lib/edit_medication_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:seg_medico2/data/database.dart'; // Questo import ora porta tutti i tipi generati
 import 'package:drift/drift.dart' hide Column; // Importa Value da drift
-import 'package:seg_medico2/data/database.dart'; // Importa il tuo database
+import 'package:intl/intl.dart';
 
 class EditMedicationPage extends StatefulWidget {
   final AppDatabase db;
   final String userId;
-  final Medication? existingMedication; // Farmaco esistente da modificare
+  final Medication? existingMedication; // Il tipo Medication è ora riconosciuto
 
   const EditMedicationPage({
     super.key,
@@ -25,12 +26,7 @@ class _EditMedicationPageState extends State<EditMedicationPage> {
   late TextEditingController _nameController;
   late TextEditingController _dosageController;
   late TextEditingController _frequencyController;
-  late TextEditingController _notesController;
-  late DateTime _startDate;
-  late DateTime _endDate;
-  DateTime? _nextDose; // Campo per la prossima dose
-
-  bool get isEditing => widget.existingMedication != null;
+  DateTime? _nextDose; // Può essere null
 
   @override
   void initState() {
@@ -38,9 +34,6 @@ class _EditMedicationPageState extends State<EditMedicationPage> {
     _nameController = TextEditingController(text: widget.existingMedication?.name ?? '');
     _dosageController = TextEditingController(text: widget.existingMedication?.dosage ?? '');
     _frequencyController = TextEditingController(text: widget.existingMedication?.frequency ?? '');
-    _notesController = TextEditingController(text: widget.existingMedication?.notes ?? '');
-    _startDate = widget.existingMedication?.startDate ?? DateTime.now();
-    _endDate = widget.existingMedication?.endDate ?? DateTime.now().add(const Duration(days: 30));
     _nextDose = widget.existingMedication?.nextDose;
   }
 
@@ -49,135 +42,82 @@ class _EditMedicationPageState extends State<EditMedicationPage> {
     _nameController.dispose();
     _dosageController.dispose();
     _frequencyController.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context, {required bool isStartDate}) async {
-    final DateTime? picked = await showDatePicker(
+  Future<void> _selectNextDoseDateTime(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: isStartDate ? _startDate : _endDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
+      initialDate: _nextDose ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
     );
-    if (picked != null && picked != (isStartDate ? _startDate : _endDate)) {
-      setState(() {
-        if (isStartDate) {
-          _startDate = picked;
-          if (_endDate.isBefore(_startDate)) {
-            _endDate = _startDate.add(const Duration(days: 30)); // Assicura che la fine sia dopo l'inizio
-          }
-        } else {
-          _endDate = picked;
-          if (_startDate.isAfter(_endDate)) {
-            _startDate = _endDate.subtract(const Duration(days: 30)); // Assicura che l'inizio sia prima della fine
-          }
-        }
-      });
-    }
-  }
 
-  Future<void> _selectTime(BuildContext context, {required bool isNextDose}) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_nextDose ?? DateTime.now()),
-    );
-    if (picked != null) {
-      setState(() {
-        final now = DateTime.now();
-        _nextDose = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
-      });
+    if (pickedDate != null) {
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_nextDose ?? DateTime.now()),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _nextDose = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
     }
   }
 
   void _saveMedication() async {
     if (_formKey.currentState!.validate()) {
-      final name = _nameController.text.trim();
-      final dosage = _dosageController.text.trim();
-      final frequency = _frequencyController.text.trim();
-      final notes = _notesController.text.trim();
+      final name = _nameController.text;
+      final dosage = _dosageController.text;
+      final frequency = _frequencyController.text;
 
-      if (isEditing) {
-        // Aggiorna farmaco esistente
-        final updatedMedicationCompanion = MedicationsCompanion(
-          id: Value(widget.existingMedication!.id), // ID del farmaco da aggiornare
-          userId: Value(widget.userId),
-          name: Value(name),
-          dosage: Value(dosage.isEmpty ? null : dosage), // Incapsula String? con Value()
-          frequency: Value(frequency),
-          notes: Value(notes),
-          startDate: Value(_startDate),
-          endDate: Value(_endDate),
-          nextDose: Value(_nextDose),
-        );
-        await widget.db.updateMedication(updatedMedicationCompanion);
+      final companion = MedicationsCompanion( // Ora riconosciuto
+        userId: Value(widget.userId),
+        name: Value(name),
+        dosage: Value(dosage.isEmpty ? null : dosage),
+        frequency: Value(frequency.isEmpty ? null : frequency),
+        nextDose: Value(_nextDose),
+        isActive: Value(widget.existingMedication?.isActive ?? true),
+      );
 
-        // Registra l'azione nella cronologia
+      if (widget.existingMedication == null) {
+        await widget.db.addMedication(companion);
         await widget.db.addHistoryEntry(
-          HistoryEntriesCompanion(
+          HistoryEntriesCompanion( // Ora riconosciuto
             userId: Value(widget.userId),
             timestamp: Value(DateTime.now()),
-            type: Value('medication_updated'),
-            description: Value('Aggiornato farmaco: $name'),
+            type: const Value('medication_added'),
+            description: Value('Nuovo farmaco aggiunto: $name'),
           ),
         );
       } else {
-        // Aggiungi nuovo farmaco
-        final newMedicationCompanion = MedicationsCompanion.insert(
-          userId: Value(widget.userId),
-          name: name, // Drift accetta String direttamente per insert
-          dosage: dosage.isEmpty ? null : dosage, // Drift accetta String? direttamente per insert
-          frequency: frequency,
-          notes: notes,
-          startDate: _startDate,
-          endDate: _endDate,
-          nextDose: _nextDose,
-        );
-        await widget.db.addMedication(newMedicationCompanion);
-
-        // Registra l'azione nella cronologia
+        await widget.db.updateMedication(companion.copyWith(id: Value(widget.existingMedication!.id)));
         await widget.db.addHistoryEntry(
-          HistoryEntriesCompanion(
+          HistoryEntriesCompanion( // Ora riconosciuto
             userId: Value(widget.userId),
             timestamp: Value(DateTime.now()),
-            type: Value('medication_added'),
-            description: Value('Aggiunto farmaco: $name'),
+            type: const Value('medication_updated'),
+            description: Value('Farmaco aggiornato: $name'),
           ),
         );
       }
-      Navigator.pop(context, Medication( // Passa l'oggetto Medication completo
-        id: isEditing ? widget.existingMedication!.id : 0, // ID fittizio per nuovo, reale per esistente
-        userId: widget.userId,
-        name: name,
-        dosage: dosage,
-        frequency: frequency,
-        notes: notes,
-        startDate: _startDate,
-        endDate: _endDate,
-        nextDose: _nextDose,
-      ));
+      Navigator.pop(context, true); // Ritorna true per indicare il successo
     }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Modifica Farmaco' : 'Aggiungi Farmaco'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _saveMedication,
-          ),
-        ],
+        title: Text(widget.existingMedication == null ? 'Nuovo Farmaco' : 'Modifica Farmaco'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -197,43 +137,26 @@ class _EditMedicationPageState extends State<EditMedicationPage> {
               ),
               TextFormField(
                 controller: _dosageController,
-                decoration: const InputDecoration(labelText: 'Dosaggio (es. 10mg, 1 compressa)'),
+                decoration: const InputDecoration(labelText: 'Dosaggio (es. 5mg, 1 compressa)'),
               ),
               TextFormField(
                 controller: _frequencyController,
                 decoration: const InputDecoration(labelText: 'Frequenza (es. 2 volte al giorno, ogni 8 ore)'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Inserisci la frequenza';
-                  }
-                  return null;
-                },
               ),
-              TextFormField(
-                controller: _notesController,
-                decoration: const InputDecoration(labelText: 'Note'),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               ListTile(
-                title: Text('Data Inizio: ${_startDate.toLocal().toString().split(' ')[0]}'),
+                title: Text(
+                  _nextDose == null
+                      ? 'Seleziona Prossima Dose'
+                      : 'Prossima Dose: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextDose!)}',
+                ),
                 trailing: const Icon(Icons.calendar_today),
-                onTap: () => _selectDate(context, isStartDate: true),
-              ),
-              ListTile(
-                title: Text('Data Fine: ${_endDate.toLocal().toString().split(' ')[0]}'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _selectDate(context, isStartDate: false),
-              ),
-              ListTile(
-                title: Text('Prossima Dose: ${_nextDose?.toLocal().toString().split('.')[0] ?? 'Non impostata'}'),
-                trailing: const Icon(Icons.access_time),
-                onTap: () => _selectTime(context, isNextDose: true),
+                onTap: () => _selectNextDoseDateTime(context),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _saveMedication,
-                child: Text(isEditing ? 'Salva Modifiche' : 'Aggiungi Farmaco'),
+                child: Text(widget.existingMedication == null ? 'Aggiungi Farmaco' : 'Salva Modifiche'),
               ),
             ],
           ),

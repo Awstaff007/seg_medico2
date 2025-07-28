@@ -1,13 +1,13 @@
 // lib/home_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:seg_medico2/data/database.dart'; // Importa il tuo database
-import 'package:seg_medico2/auth/auth_service.dart'; // Importa AuthService
+import 'package:seg_medico2/data/database.dart'; // Questo import ora porta tutti i tipi generati (Appointment, Medication, HistoryEntry, Companion classes)
 import 'package:seg_medico2/appointments_page.dart';
 import 'package:seg_medico2/medications_page.dart';
 import 'package:seg_medico2/history_page.dart';
-import 'package:seg_medico2/settings_page.dart';
-import 'package:seg_medico2/theme_notifier.dart'; // Importa ThemeNotifier
+import 'package:drift/drift.dart' hide Column; // Importa Value da drift, nascondendo Column per evitare conflitti
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:intl/intl.dart'; // Per la formattazione della data
 
 class HomePage extends StatefulWidget {
   final AppDatabase db;
@@ -20,374 +20,327 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  Profile? _userProfile;
+  // I tipi ora dovrebbero essere riconosciuti correttamente grazie all'import di database.dart
   Appointment? _nextAppointment;
-  int _medicationReminderDays = 0; // Placeholder per i giorni rimanenti
+  Medication? _nextMedication;
 
   @override
   void initState() {
     super.initState();
-    _loadUserProfile();
     _loadNextAppointment();
-    _calculateMedicationReminder();
+    _loadNextMedication();
   }
 
-  // Carica il profilo utente dal database
-  Future<void> _loadUserProfile() async {
-    final profile = await widget.db.getProfileForUser(widget.userId);
-    setState(() {
-      _userProfile = profile;
-    });
-  }
-
-  // Carica il prossimo appuntamento
   Future<void> _loadNextAppointment() async {
-    // Implementa la logica per ottenere il prossimo appuntamento futuro
-    // Esempio:
-    final allAppointments = await widget.db.watchAppointmentsForUser(widget.userId).first;
-    final now = DateTime.now();
-    final nextAppt = allAppointments
-        .where((a) => a.appointmentDateTime.isAfter(now) && !a.isCompleted)
-        .toList()
-        ..sort((a, b) => a.appointmentDateTime.compareTo(b.appointmentDateTime));
+    // allAppointments è ora List<Appointment>, quindi i getter sono disponibili
+    final allAppointments = await widget.db.getAllAppointmentsForUser(widget.userId);
+    final upcomingAppointments = allAppointments.where((a) => !a.isCompleted && a.appointmentDate.isAfter(DateTime.now())).toList();
+    upcomingAppointments.sort((a, b) => a.appointmentDate.compareTo(b.appointmentDate));
     setState(() {
-      _nextAppointment = nextAppt.isNotEmpty ? nextAppt.first : null;
+      _nextAppointment = upcomingAppointments.isNotEmpty ? upcomingAppointments.first : null;
     });
   }
 
-  // Calcola i giorni rimanenti per la ripetizione dei farmaci
-  void _calculateMedicationReminder() {
-    // Logica placeholder. In un'app reale, calcoleresti questo basandoti sui farmaci.
+  Future<void> _loadNextMedication() async {
+    // allMedications è ora List<Medication>, quindi i getter sono disponibili
+    final allMedications = await widget.db.getAllMedicationsForUser(widget.userId);
+    final upcomingMedications = allMedications.where((m) => m.isActive && m.nextDose != null && m.nextDose!.isAfter(DateTime.now())).toList();
+    upcomingMedications.sort((a, b) => a.nextDose!.compareTo(b.nextDose!));
     setState(() {
-      _medicationReminderDays = 12; // Esempio
+      _nextMedication = upcomingMedications.isNotEmpty ? upcomingMedications.first : null;
     });
   }
 
-  // Funzione per annullare la prossima visita
-  Future<void> _cancelNextAppointment() async {
+  Future<void> _completeAppointment() async {
     if (_nextAppointment != null) {
-      final bool? confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Annulla Appuntamento'),
-          content: Text('Sei sicuro di voler annullare l\'appuntamento "${_nextAppointment!.title}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('No'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Sì', style: TextStyle(color: Colors.red)),
-            ),
-          ],
+      await widget.db.updateAppointment(
+        AppointmentsCompanion(
+          id: Value(_nextAppointment!.id),
+          isCompleted: const Value(true),
         ),
       );
-
-      if (confirm == true) {
-        // Aggiorna l'appuntamento come completato o eliminalo
-        await widget.db.updateAppointment(
-          AppointmentsCompanion(
-            id: Value(_nextAppointment!.id),
-            isCompleted: const Value(true), // O elimina completamente: widget.db.deleteAppointment(_nextAppointment!.id);
-          ),
-        );
-        // Aggiungi un'entrata nella cronologia
-        await widget.db.addHistoryEntry(
-          HistoryEntriesCompanion(
-            userId: Value(widget.userId),
-            timestamp: Value(DateTime.now()),
-            type: Value('appointment_cancelled'),
-            description: Value('Appuntamento annullato: ${_nextAppointment!.title}'),
-          ),
-        );
-        _showMessage('Appuntamento annullato.');
-        _loadNextAppointment(); // Ricarica per rimuovere l'appuntamento annullato
-      }
+      await widget.db.addHistoryEntry(
+        HistoryEntriesCompanion(
+          userId: Value(widget.userId),
+          timestamp: Value(DateTime.now()),
+          type: const Value('appointment_completed'),
+          description: Value('Appuntamento completato: ${_nextAppointment!.title}'),
+        ),
+      );
+      _loadNextAppointment(); // Ricarica il prossimo appuntamento
     }
   }
 
-  // Funzione per il logout
-  void _logout() async {
-    final authService = AuthService();
-    await authService.logout();
-    // AuthWrapper gestirà il reindirizzamento alla LoginPage
+  Future<void> _cancelAppointment() async {
+    if (_nextAppointment != null) {
+      await widget.db.deleteAppointment(_nextAppointment!.id);
+      await widget.db.addHistoryEntry(
+        HistoryEntriesCompanion(
+          userId: Value(widget.userId),
+          timestamp: Value(DateTime.now()),
+          type: const Value('appointment_cancelled'),
+          description: Value('Appuntamento annullato: ${_nextAppointment!.title}'),
+        ),
+      );
+      _loadNextAppointment(); // Ricarica il prossimo appuntamento
+    }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  Future<void> _takeMedication() async {
+    if (_nextMedication != null) {
+      // Aggiorna la prossima dose per il farmaco
+      // Utilizza il metodo toCompanion generato per creare un Companion da un modello esistente
+      final updatedMedicationCompanion = _nextMedication!.toCompanion(true).copyWith(
+        nextDose: Value(_nextMedication!.nextDose!.add(const Duration(days: 1))), // Esempio: prossima dose tra 1 giorno
+      );
+      await widget.db.updateMedication(updatedMedicationCompanion);
+
+      await widget.db.addHistoryEntry(
+        HistoryEntriesCompanion(
+          userId: Value(widget.userId),
+          timestamp: Value(DateTime.now()),
+          type: const Value('medication_taken'),
+          description: Value('Farmaco preso: ${_nextMedication!.name} - Dose: ${_nextMedication!.dosage}'),
+        ),
+      );
+      _loadNextMedication(); // Ricarica il prossimo farmaco
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final fontSizeScale = _userProfile?.homepageFontSizeScale?.toDouble() ?? 1.0;
-
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            // Icona per la dimensione del testo
-            IconButton(
-              icon: const Icon(Icons.text_fields),
-              onPressed: () {
-                // Logica per cambiare la dimensione del testo globalmente
-                // Potresti navigare alla pagina delle impostazioni o mostrare un dialogo
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SettingsPage(db: widget.db, userId: widget.userId),
-                  ),
-                ).then((_) => _loadUserProfile()); // Ricarica il profilo dopo il ritorno
-              },
-            ),
-            const SizedBox(width: 8),
-            // Nome utente e dropdown per selezionare profilo
-            Expanded(
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: widget.userId, // Assumi che l'ID utente sia il valore corrente
-                  icon: const Icon(Icons.arrow_drop_down),
-                  style: TextStyle(fontSize: 16 * fontSizeScale, fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onPrimary),
-                  onChanged: (String? newValue) {
-                    // Logica per cambiare profilo (non implementata in questo esempio)
-                    _showMessage('Funzionalità cambio profilo non implementata.');
-                  },
-                  items: <String>[widget.userId] // Mostra solo l'utente corrente per ora
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value), // Mostra l'ID utente come nome del profilo
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
-          ],
-        ),
+        title: const Text('Segreteria Medica'),
         actions: [
-          TextButton(
+          IconButton(
+            icon: const Icon(Icons.history),
             onPressed: () {
-              // Logica per gestire i profili (aggiungi/modifica/imposta default)
-              _showMessage('Funzionalità gestione profili non implementata.');
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => HistoryPage(db: widget.db, userId: widget.userId)),
+              );
             },
-            child: Text('Gestisci profili', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-          ),
-          TextButton(
-            onPressed: _logout,
-            child: Text('Esci', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
           ),
         ],
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Card "Prossima visita"
-            if (_nextAppointment != null)
-              Card(
-                margin: const EdgeInsets.only(bottom: 16.0),
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Prossima visita: ${_nextAppointment!.appointmentDateTime.toLocal().toString().split('.')[0]}',
-                        style: TextStyle(fontSize: 18 * fontSizeScale, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'Luogo: ${_nextAppointment!.location ?? 'Nessuno'}',
-                        style: TextStyle(fontSize: 16 * fontSizeScale),
-                      ),
-                      // Aggiungi note se disponibili
-                      if (_nextAppointment!.title.isNotEmpty) // Usiamo il titolo come "note" per ora
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            '↪ Note: "${_nextAppointment!.title}"',
-                            style: TextStyle(fontSize: 14 * fontSizeScale, fontStyle: FontStyle.italic),
+            _buildSectionTitle('Prossimi Appuntamenti'),
+            _nextAppointment == null
+                ? const Text('Nessun appuntamento imminente.')
+                : Card(
+                    margin: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _nextAppointment!.title,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
-                        ),
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: ElevatedButton(
-                          onPressed: _cancelNextAppointment,
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                          child: const Text('Annulla visita', style: TextStyle(color: Colors.white)),
-                        ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextAppointment!.appointmentDate)}',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          if (_nextAppointment!.description != null && _nextAppointment!.description!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text(
+                                'Descrizione: ${_nextAppointment!.description}',
+                                style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
+                              ),
+                            ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton(
+                                onPressed: _completeAppointment,
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                                child: const Text('Completato'),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed: _cancelAppointment,
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                child: const Text('Annulla'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            // Card "Ripetizione farmaci"
-            Card(
-              margin: const EdgeInsets.only(bottom: 16.0),
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Ripetizione farmaci tra [ $_medicationReminderDays ] giorni',
-                      style: TextStyle(fontSize: 18 * fontSizeScale, fontWeight: FontWeight.bold),
-                    ),
-                    // Pulsante per ordinare farmaci (placeholder)
-                    ElevatedButton(
-                      onPressed: () {
-                        _showMessage('Funzionalità ordine farmaci non implementata.');
-                      },
-                      child: const Text('Ordina farmaci'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Spacer(), // Spinge il menu in basso
-
-            // Pulsanti principali (Farmaci, Appuntamenti)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => MedicationsPage(db: widget.db, userId: widget.userId)),
-                      );
-                    },
-                    icon: const Icon(Icons.medication),
-                    label: const Text('Farmaci'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      textStyle: TextStyle(fontSize: 18 * fontSizeScale),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => AppointmentsPage(db: widget.db, userId: widget.userId)),
-                      );
-                    },
-                    icon: const Icon(Icons.calendar_today),
-                    label: const Text('Appuntamenti'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      textStyle: TextStyle(fontSize: 18 * fontSizeScale),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 24),
-
-            // Menu laterale (Drawer) - Questo è un placeholder visivo per la struttura
-            // Il Drawer effettivo è collegato allo Scaffold.
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Builder(
-                builder: (context) => FloatingActionButton.extended(
-                  onPressed: () {
-                    Scaffold.of(context).openEndDrawer(); // Apre il Drawer a destra
-                  },
-                  label: const Text('Menu'),
-                  icon: const Icon(Icons.menu),
-                ),
-              ),
-            ),
+            _buildSectionTitle('Prossimi Farmaci'),
+            _nextMedication == null
+                ? const Text('Nessun farmaco imminente.')
+                : Card(
+                    margin: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _nextMedication!.name,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          if (_nextMedication!.dosage != null && _nextMedication!.dosage!.isNotEmpty)
+                            Text(
+                              'Dosaggio: ${_nextMedication!.dosage}',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          if (_nextMedication!.frequency != null && _nextMedication!.frequency!.isNotEmpty)
+                            Text(
+                              'Frequenza: ${_nextMedication!.frequency}',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          if (_nextMedication!.nextDose != null)
+                            Text(
+                              'Prossima dose: ${DateFormat('dd/MM/yyyy HH:mm').format(_nextMedication!.nextDose!)}',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          const SizedBox(height: 16),
+                          Align(
+                            alignment: Alignment.bottomRight,
+                            child: ElevatedButton(
+                              onPressed: _takeMedication,
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                              child: const Text('Prendi Farmaco'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+            const SizedBox(height: 24),
+            _buildSectionTitle('Accesso Rapido'),
+            _buildQuickAccessGrid(),
           ],
         ),
       ),
-      endDrawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Menu',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary,
-                      fontSize: 24 * fontSizeScale,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Utente: ${widget.userId}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
-                      fontSize: 16 * fontSizeScale,
-                    ),
-                  ),
-                ],
-              ),
+      floatingActionButton: SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.calendar_today),
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            label: 'Nuovo Appuntamento',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AppointmentsPage(db: widget.db, userId: widget.userId)),
+              ).then((_) => _loadNextAppointment()); // Ricarica dopo aver aggiunto/modificato
+            },
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.medical_services),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            label: 'Nuovo Farmaco',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => MedicationsPage(db: widget.db, userId: widget.userId)),
+              ).then((_) => _loadNextMedication()); // Ricarica dopo aver aggiunto/modificato
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Text(
+        title,
+        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+      ),
+    );
+  }
+
+  Widget _buildQuickAccessGrid() {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 16.0,
+      mainAxisSpacing: 16.0,
+      children: [
+        _buildQuickAccessCard(
+          icon: Icons.calendar_month,
+          title: 'Appuntamenti',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => AppointmentsPage(db: widget.db, userId: widget.userId)),
+            );
+          },
+        ),
+        _buildQuickAccessCard(
+          icon: Icons.medication,
+          title: 'Farmaci',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => MedicationsPage(db: widget.db, userId: widget.userId)),
+            );
+          },
+        ),
+        _buildQuickAccessCard(
+          icon: Icons.history,
+          title: 'Cronologia',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => HistoryPage(db: widget.db, userId: widget.userId)),
+            );
+          },
+        ),
+        _buildQuickAccessCard(
+          icon: Icons.settings,
+          title: 'Impostazioni',
+          onTap: () {
+            // TODO: Implementare la pagina delle impostazioni
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Funzionalità Impostazioni non ancora implementata.')),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickAccessCard({required IconData icon, required String title, required VoidCallback onTap}) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 50, color: Theme.of(context).primaryColor),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: Text('Cronologia', style: TextStyle(fontSize: 16 * fontSizeScale)),
-              onTap: () {
-                Navigator.pop(context); // Chiudi il drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => HistoryPage(db: widget.db, userId: widget.userId)),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.medication),
-              title: Text('Farmaci', style: TextStyle(fontSize: 16 * fontSizeScale)),
-              onTap: () {
-                Navigator.pop(context); // Chiudi il drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => MedicationsPage(db: widget.db, userId: widget.userId)),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.calendar_today),
-              title: Text('Appuntamenti', style: TextStyle(fontSize: 16 * fontSizeScale)),
-              onTap: () {
-                Navigator.pop(context); // Chiudi il drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => AppointmentsPage(db: widget.db, userId: widget.userId)),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: Text('Impostazioni', style: TextStyle(fontSize: 16 * fontSizeScale)),
-              onTap: () {
-                Navigator.pop(context); // Chiudi il drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SettingsPage(db: widget.db, userId: widget.userId)),
-                );
-              },
-            ),
-            // Aggiungi altre voci di menu se necessario
           ],
         ),
       ),
