@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:seg_medico2/data/database.dart';
-// CORREZIONE: Aggiunto import mancante per usare 'Value'
+import 'package:seg_medico2/data/database.dart' hide Column;
 import 'package:drift/drift.dart';
+
+
 
 class HomePage extends StatefulWidget {
   final AppDatabase db;
